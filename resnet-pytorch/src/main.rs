@@ -1,4 +1,4 @@
-use mnist::*;
+// use mnist::*;
 
 use ndarray::{Array2, Array3};
 use std::convert::From;
@@ -12,7 +12,7 @@ extern crate num as num_renamed;
 extern crate num_derive;
 
 mod plugin {
-    #[link(wasm_import_module = "naive-math")]
+    #[link(wasm_import_module = "wasmedge-nn-training")]
     extern "C" {
         pub fn train(
             train_images_offset: i32,
@@ -29,7 +29,7 @@ mod plugin {
 }
 
 fn main() {
-    download_mnist_images();
+    // download_mnist_images();
 
     let mut dataset: Vec<&protocol::Tensor> = vec![];
 
@@ -142,16 +142,17 @@ fn main() {
     }
 }
 
-fn download_mnist_images() {
-    // Mnist images
-    let _ = MnistBuilder::new()
-        .download_and_extract()
-        .label_format_digit()
-        .training_set_length(60_000_u32)
-        .validation_set_length(10_000_u32)
-        .test_set_length(10_000_u32)
-        .finalize();
-}
+// fn download_mnist_images() {
+//     // Mnist images
+//     let _ = MnistBuilder::new()
+//         .download_and_extract()
+//         .label_format_digit()
+//         .training_set_length(60_000_u32)
+//         .validation_set_length(10_000_u32)
+//         .test_set_length(10_000_u32)
+//         .finalize();
+// }
+
 // pub fn image_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize, dim3: usize) -> Array3<f32> {
 //     // normalize the image as well
 //     let inp_data: Array3<f32> = Array3::from_shape_vec((dim1, dim2, dim3), data)
