@@ -1,2 +1,2 @@
 [workspace]
-members = ["wasmedge-nn-training", "resnet-pytorch"]
+members = ["wasmedge-nn-training", "examples/pytorch/resnet-pytorch"]

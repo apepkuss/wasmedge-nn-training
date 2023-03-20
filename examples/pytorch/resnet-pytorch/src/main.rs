@@ -5,7 +5,7 @@ use std::convert::From;
 use std::fs::File;
 use std::io::{self, BufReader, Read, Result, Write};
 use std::path::Path;
-use std::{mem, vec};
+use std::vec;
 
 extern crate num as num_renamed;
 #[macro_use]
@@ -162,7 +162,7 @@ fn check_magic_number<T: Read>(reader: &mut T, expected: u32) -> Result<()> {
     Ok(())
 }
 
-fn read_labels(filename: &std::path::Path) -> Result<ndarray::Array<i64, ndarray::Ix1>> {
+fn _read_labels(filename: &std::path::Path) -> Result<ndarray::Array<i64, ndarray::Ix1>> {
     let mut buf_reader = BufReader::new(File::open(filename)?);
     check_magic_number(&mut buf_reader, 2049)?;
     let samples = read_u32(&mut buf_reader)?;
@@ -191,7 +191,7 @@ fn read_labels_new(filename: &std::path::Path) -> Result<Vec<u8>> {
     // Ok(Tensor::of_slice(&data).to_kind(Kind::Int64))
 }
 
-fn read_images(filename: &std::path::Path) -> Result<ndarray::Array<f32, ndarray::Ix2>> {
+fn _read_images(filename: &std::path::Path) -> Result<ndarray::Array<f32, ndarray::Ix2>> {
     let mut buf_reader = BufReader::new(File::open(filename)?);
     check_magic_number(&mut buf_reader, 2051)?;
     let samples = read_u32(&mut buf_reader)?;
@@ -244,13 +244,18 @@ fn read_images_new(filename: &std::path::Path) -> Result<Vec<u8>> {
     // Ok(tensor / 255.)
 }
 
-fn images_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize, dim3: usize) -> ndarray::Array3<f32> {
+fn _images_to_ndarray(
+    data: Vec<u8>,
+    dim1: usize,
+    dim2: usize,
+    dim3: usize,
+) -> ndarray::Array3<f32> {
     Array3::from_shape_vec((dim1, dim2, dim3), data)
         .expect("Error converting data to 3D array")
         .map(|x| *x as f32)
 }
 
-fn labels_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize) -> ndarray::Array2<i64> {
+fn _labels_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize) -> ndarray::Array2<i64> {
     Array2::from_shape_vec((dim1, dim2), data)
         .expect("Error converting data to 2D array")
         .map(|x| *x as i64)

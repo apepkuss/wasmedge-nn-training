@@ -303,7 +303,7 @@ fn train_model(
     optimizer: protocol::Optimizer,
     loss_fn: protocol::LossFunction,
 ) -> Result<()> {
-    let module_path = "model.pt";
+    let module_path = "examples/pytorch/resnet-pytorch/model.pt";
 
     let vs = VarStore::new(device);
     let mut trainable = TrainableCModule::load(module_path, vs.root())?;
@@ -357,8 +357,14 @@ fn train_model(
     }
     println!("[Plugin] Finished");
 
-    trainable.save("trained_model.pt")?;
-    println!("[Plugin] The pre-trained model is dumped to `trained_model.pt`");
+    let saved_model_file = std::path::Path::new("examples/pytorch/resnet-pytorch/trained_model.pt")
+        .canonicalize()
+        .expect("[Plugin] Failed to set the path for saving the pre-trained model");
+    trainable.save(&saved_model_file)?;
+    println!(
+        "[Plugin] The pre-trained model is dumped to `{}`",
+        saved_model_file.display()
+    );
 
     Ok(())
 }
