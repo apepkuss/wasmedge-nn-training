@@ -142,34 +142,6 @@ fn main() {
     }
 }
 
-// fn download_mnist_images() {
-//     // Mnist images
-//     let _ = MnistBuilder::new()
-//         .download_and_extract()
-//         .label_format_digit()
-//         .training_set_length(60_000_u32)
-//         .validation_set_length(10_000_u32)
-//         .test_set_length(10_000_u32)
-//         .finalize();
-// }
-
-// pub fn image_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize, dim3: usize) -> Array3<f32> {
-//     // normalize the image as well
-//     let inp_data: Array3<f32> = Array3::from_shape_vec((dim1, dim2, dim3), data)
-//         .expect("Error converting data to 3D array")
-//         .map(|x| *x as f32 / 256.0);
-
-//     inp_data
-// }
-
-// pub fn labels_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize) -> Array2<i64> {
-//     let inp_data: Array2<i64> = Array2::from_shape_vec((dim1, dim2), data)
-//         .expect("Error converting data to 2D array")
-//         .map(|x| *x as i64);
-
-//     inp_data
-// }
-
 fn read_u32<T: Read>(reader: &mut T) -> Result<u32> {
     let mut b = vec![0u8; 4];
     reader.read_exact(&mut b)?;
@@ -282,6 +254,23 @@ fn labels_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize) -> ndarray::Array2
     Array2::from_shape_vec((dim1, dim2), data)
         .expect("Error converting data to 2D array")
         .map(|x| *x as i64)
+}
+
+fn image_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize, dim3: usize) -> Array3<f32> {
+    // normalize the image as well
+    let inp_data: Array3<f32> = Array3::from_shape_vec((dim1, dim2, dim3), data)
+        .expect("Error converting data to 3D array")
+        .map(|x| *x as f32 / 256.0);
+
+    inp_data
+}
+
+fn labels_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize) -> Array2<i64> {
+    let inp_data: Array2<i64> = Array2::from_shape_vec((dim1, dim2), data)
+        .expect("Error converting data to 2D array")
+        .map(|x| *x as i64);
+
+    inp_data
 }
 
 // * interface protocol
