@@ -14,6 +14,22 @@ The goal of this project is to explore the feasibility of providing AI training 
 
 - OS: Ubuntu 20.04+
 
+- `Rust`
+
+  Go to the [official Rust webpage](https://www.rust-lang.org/tools/install) and follow the instructions to install `rustup` and `Rust`.
+
+  > It is recommended to use Rust 1.63 or above in the stable channel.
+
+  Then, add `wasm32-wasi` target to the Rustup toolchain:
+
+  ```bash
+  rustup target add wasm32-wasi
+  ```
+
+- WasmEdge Runtime
+
+  Refer to the [Quick Install](https://wasmedge.org/book/en/quick_start/install.html#quick-install) section of WasmEdge Runtime Book to install `libwasmedge`.
+
 - Mnist image data
 
     The Mnist image data is located in the `data` directory of this repo.
@@ -112,17 +128,18 @@ wasmedge --dir .:. target/wasm32-wasi/release/test-tch-backend.wasm
   [Plugin] batch size: 128
   [Plugin] Optimizer: Adam
   [Plugin] Loss function: CrossEntropyForLogits
-  [Plugin] Initial accuracy:  9.45%
+  [Plugin] Initial accuracy:  9.31%
   [Plugin] Start training ... 
-          epoch:    1 test acc: 87.20%
-          epoch:    2 test acc: 89.39%
-          epoch:    3 test acc: 89.99%
-          epoch:    4 test acc: 90.70%
-          epoch:    5 test acc: 90.39%
-          epoch:    6 test acc: 90.85%
-          epoch:    7 test acc: 91.04%
-          epoch:    8 test acc: 91.38%
-          epoch:    9 test acc: 91.28%
+          epoch:    1 test acc: 87.31%
+          epoch:    2 test acc: 89.51%
+          epoch:    3 test acc: 90.43%
+          epoch:    4 test acc: 90.65%
+          epoch:    5 test acc: 90.84%
+          epoch:    6 test acc: 91.18%
+          epoch:    7 test acc: 91.32%
+          epoch:    8 test acc: 91.11%
+          epoch:    9 test acc: 91.45%
+          epoch:   10 test acc: 91.29%
   [Plugin] Finished
   [Plugin] The pre-trained model is dumped to `trained_model.pt`
   ```
