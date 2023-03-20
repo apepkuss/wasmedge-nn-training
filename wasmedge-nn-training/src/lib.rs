@@ -605,7 +605,7 @@ fn set_input_tensor(
 unsafe extern "C" fn create_test_module(
     _arg1: *const ffi::WasmEdge_ModuleDescriptor,
 ) -> *mut ffi::WasmEdge_ModuleInstanceContext {
-    let module_name = "naive-math";
+    let module_name = "wasmedge-nn-training";
     let import = ImportObjectBuilder::new()
         // add a function
         .with_func::<(i32, i32), i32>("add", real_add)
@@ -626,14 +626,14 @@ unsafe extern "C" fn create_test_module(
 /// Defines PluginDescriptor
 #[export_name = "WasmEdge_Plugin_GetDescriptor"]
 pub extern "C" fn plugin_hook() -> *const ffi::WasmEdge_PluginDescriptor {
-    let name = "naive_math_plugin";
-    let desc = "this is naive math plugin";
+    let name = "wasmedge-nn-training-plugin";
+    let desc = "this is an experimental plugin for AI training";
     let version = PluginVersion::new(0, 0, 0, 0);
     let plugin_descriptor = PluginDescriptor::new(name, desc, version)
         .expect("Failed to create plugin descriptor")
         .add_module_descriptor(
-            "naive_math_module",
-            "this is naive math module",
+            "wasmedge_nn_training_module",
+            "this is a plugin module for AI training",
             Some(create_test_module),
         )
         .expect("Failed to add module descriptor");
