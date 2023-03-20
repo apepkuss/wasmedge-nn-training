@@ -3,6 +3,14 @@ name = "wasmedge-nn-training"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
+anyhow = "1"
+byteorder = "1.4.3"
+num = "0.4.0"
+num-derive = "0.3"
+num-traits = "0.2"
+tch = "0.10.3"
+wasmedge-sdk = {path = "/root/workspace/WasmEdge/bindings/rust/wasmedge-sdk", features = ["ffi"]}
