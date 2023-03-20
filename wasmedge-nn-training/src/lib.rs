@@ -22,7 +22,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
-    assert_eq!(input.len(), 9);
+    assert_eq!(input.len(), 11);
 
     // get the linear memory
     let memory = caller.memory(0).expect("failed to get memory at idex 0");
@@ -287,14 +287,38 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         .expect("[Plugin] failed to parse loss function");
     println!("[Plugin] Loss function: {:?}", loss_fn);
 
+    // model data
+    let offset_model_file = if input[9].ty() == ValType::I32 {
+        input[9].to_i32()
+    } else {
+        return Err(HostFuncError::User(10));
+    };
+    let len_model_file = if input[10].ty() == ValType::I32 {
+        input[10].to_i32()
+    } else {
+        return Err(HostFuncError::User(11));
+    };
+    let ptr_model = memory
+        .data_pointer(offset_model_file as u32, 4)
+        .expect("[Plugin] Failed to parse model");
+    let slice_model = unsafe { std::slice::from_raw_parts(ptr_model, len_model_file as usize) };
+    let model_file = std::str::from_utf8(slice_model).expect("[Plugin] Failed to parse model file");
+    let model_file = std::path::Path::new(model_file)
+        .canonicalize()
+        .expect("[Plugin] Failed to parse model filepath");
+    let model_path = model_file.as_path();
+    // println!("[Plugin] model path: {:?}", model_path);
+
     // start training
-    train_model(ds, device, lr, epochs, batch_size, optimizer, loss_fn)
-        .expect("failed to train model");
+    train_torch_model(
+        ds, device, lr, epochs, batch_size, optimizer, loss_fn, model_path,
+    )
+    .expect("failed to train model");
 
     Ok(vec![])
 }
 
-fn train_model(
+fn train_torch_model(
     dataset: Dataset,
     device: Device,
     lr: f64,
@@ -302,11 +326,11 @@ fn train_model(
     batch_size: i64,
     optimizer: protocol::Optimizer,
     loss_fn: protocol::LossFunction,
+    model_path: &std::path::Path,
 ) -> Result<()> {
-    let module_path = "examples/pytorch/resnet-pytorch/model.pt";
-
     let vs = VarStore::new(device);
-    let mut trainable = TrainableCModule::load(module_path, vs.root())?;
+    println!("[Plugin] Load model");
+    let mut trainable = TrainableCModule::load(model_path, vs.root())?;
     trainable.set_train();
 
     let initial_acc = trainable.batch_accuracy_for_logits(
@@ -357,13 +381,13 @@ fn train_model(
     }
     println!("[Plugin] Finished");
 
-    let saved_model_file = std::path::Path::new("examples/pytorch/resnet-pytorch/trained_model.pt")
-        .canonicalize()
-        .expect("[Plugin] Failed to set the path for saving the pre-trained model");
+    let saved_model_filename =
+        String::from("trained_") + model_path.file_name().unwrap().to_str().unwrap();
+    let saved_model_file = model_path.with_file_name(saved_model_filename);
     trainable.save(&saved_model_file)?;
     println!(
-        "[Plugin] The pre-trained model is dumped to `{}`",
-        saved_model_file.display()
+        "[Plugin] The pre-trained model is dumped to {:?}",
+        saved_model_file
     );
 
     Ok(())
@@ -376,7 +400,7 @@ unsafe extern "C" fn create_test_module(
     let module_name = "wasmedge-nn-training";
     let import = ImportObjectBuilder::new()
         // add a function
-        .with_func::<(i32, i32, i64, i32, f64, i32, i64, i32, i32), ()>("train", train)
+        .with_func::<(i32, i32, i64, i32, f64, i32, i64, i32, i32, i32, i32), ()>("train", train)
         .expect("failed to create set_dataset host function")
         .build(module_name)
         .expect("failed to create import object");
@@ -522,6 +546,9 @@ pub mod protocol {
     pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
     pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
 
+    pub type GraphBuilder<'a> = &'a [u8];
+    pub type GraphBuilderArray<'a> = &'a [GraphBuilder<'a>];
+
     pub type TensorElement<'a> = &'a Tensor<'a>;
     pub type TensorArray<'a> = &'a [TensorElement<'a>];
 
@@ -596,7 +623,4 @@ pub mod protocol {
                 .finish()
         }
     }
-
-    pub type GraphBuilder<'a> = &'a [u8];
-    pub type GraphBuilderArray<'a> = &'a [GraphBuilder<'a>];
 }
