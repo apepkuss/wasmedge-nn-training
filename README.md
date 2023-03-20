@@ -128,20 +128,21 @@ wasmedge --dir .:. target/wasm32-wasi/release/test-tch-backend.wasm
   [Plugin] batch size: 128
   [Plugin] Optimizer: Adam
   [Plugin] Loss function: CrossEntropyForLogits
-  [Plugin] Initial accuracy:  9.31%
+  [Plugin] Load model
+  [Plugin] Initial accuracy:  9.47%
   [Plugin] Start training ... 
-          epoch:    1 test acc: 87.31%
-          epoch:    2 test acc: 89.51%
-          epoch:    3 test acc: 90.43%
-          epoch:    4 test acc: 90.65%
-          epoch:    5 test acc: 90.84%
-          epoch:    6 test acc: 91.18%
-          epoch:    7 test acc: 91.32%
-          epoch:    8 test acc: 91.11%
-          epoch:    9 test acc: 91.45%
-          epoch:   10 test acc: 91.29%
+          epoch:    1 test acc: 87.18%
+          epoch:    2 test acc: 89.36%
+          epoch:    3 test acc: 90.07%
+          epoch:    4 test acc: 90.55%
+          epoch:    5 test acc: 90.68%
+          epoch:    6 test acc: 91.28%
+          epoch:    7 test acc: 91.00%
+          epoch:    8 test acc: 91.39%
+          epoch:    9 test acc: 91.47%
+          epoch:   10 test acc: 91.61%
   [Plugin] Finished
-  [Plugin] The pre-trained model is dumped to `trained_model.pt`
+  [Plugin] The pre-trained model is dumped to "/root/workspace/wasmedge-nn-training/examples/pytorch/resnet-pytorch/trained_model.pt"
   ```
 
 

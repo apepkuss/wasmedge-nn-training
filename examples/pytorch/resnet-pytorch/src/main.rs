@@ -7,6 +7,8 @@ use std::io::{self, BufReader, Read, Result, Write};
 use std::path::Path;
 use std::vec;
 
+use crate::protocol::{GraphBuilder, GraphBuilderArray};
+
 extern crate num as num_renamed;
 #[macro_use]
 extern crate num_derive;
@@ -24,12 +26,18 @@ mod plugin {
             batch_size: i64,
             optimizer: i32,
             loss_fn: i32,
+            model_arr: i32,
+            model_arr_len: i32,
         );
     }
 }
 
 fn main() {
     // download_mnist_images();
+
+    let args: Vec<String> = std::env::args().collect();
+    // model file
+    let model_file = args[1].as_bytes();
 
     let mut dataset: Vec<&protocol::Tensor> = vec![];
 
@@ -138,6 +146,8 @@ fn main() {
             128,
             optimizer,
             loss_fn,
+            model_file.as_ptr() as i32,
+            model_file.len() as i32,
         )
     }
 }
@@ -261,6 +271,17 @@ fn _labels_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize) -> ndarray::Array
         .map(|x| *x as i64)
 }
 
+fn load_model(filename: &str) -> Result<Vec<u8>> {
+    dbg!(filename);
+
+    let mut buf_reader = BufReader::new(File::open(filename)?);
+
+    let mut data: Vec<u8> = vec![];
+    buf_reader.read_to_end(&mut data)?;
+
+    Ok(data)
+}
+
 // * interface protocol
 
 pub mod protocol {
@@ -374,6 +395,9 @@ pub mod protocol {
     pub const SIZE_OF_TENSOR: u32 = 20;
     pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
     pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
+
+    pub type GraphBuilder<'a> = &'a [u8];
+    pub type GraphBuilderArray<'a> = &'a [GraphBuilder<'a>];
 
     // size: 4 bytes
     pub type TensorElement<'a> = &'a Tensor<'a>;
