@@ -1,0 +1,2 @@
+[workspace]
+members = ["wasmedge-nn-training", "resnet-pytorch"]
