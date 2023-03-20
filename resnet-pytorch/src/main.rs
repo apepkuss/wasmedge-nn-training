@@ -256,23 +256,6 @@ fn labels_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize) -> ndarray::Array2
         .map(|x| *x as i64)
 }
 
-fn image_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize, dim3: usize) -> Array3<f32> {
-    // normalize the image as well
-    let inp_data: Array3<f32> = Array3::from_shape_vec((dim1, dim2, dim3), data)
-        .expect("Error converting data to 3D array")
-        .map(|x| *x as f32 / 256.0);
-
-    inp_data
-}
-
-fn labels_to_ndarray(data: Vec<u8>, dim1: usize, dim2: usize) -> Array2<i64> {
-    let inp_data: Array2<i64> = Array2::from_shape_vec((dim1, dim2), data)
-        .expect("Error converting data to 2D array")
-        .map(|x| *x as i64);
-
-    inp_data
-}
-
 // * interface protocol
 
 pub mod protocol {

@@ -303,7 +303,7 @@ fn train_model(
     optimizer: protocol::Optimizer,
     loss_fn: protocol::LossFunction,
 ) -> Result<()> {
-    let module_path = "/root/workspace/wasi-nn-training/model.pt";
+    let module_path = "model.pt";
 
     let vs = VarStore::new(device);
     let mut trainable = TrainableCModule::load(module_path, vs.root())?;
@@ -331,7 +331,7 @@ fn train_model(
 
     println!("[Plugin] Start training ... ");
     // let mut opt = Adam::default().build(&vs, lr).expect("[Train] optimizer");
-    for epoch in 1..epochs {
+    for epoch in 1..=epochs {
         for (images, labels) in dataset
             .train_iter(batch_size)
             .shuffle()
