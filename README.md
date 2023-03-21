@@ -4,7 +4,7 @@
 
 The goal of this project is to explore the feasibility of providing AI training capability based on WasmEdge Plugin mechanism. The rudimentary architecture of the AI training based on WasmEdge Runtime is shown as below:
 
-<img src="architecture.jpg" alt="architecture" style="zoom:50%;" />
+<img src="architecture.jpg" alt="architecture" style="zoom:30%;" />
 
 This project consists of three parts:
 
