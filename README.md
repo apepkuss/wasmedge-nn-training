@@ -2,7 +2,11 @@
 
 > This is an experimental project, and it is still in the active development. 
 
-The goal of this project is to explore the feasibility of providing AI training capability based on WasmEdge Plugin mechanism. This project consists of three parts:
+The goal of this project is to explore the feasibility of providing AI training capability based on WasmEdge Plugin mechanism. The rudimentary architecture of the AI training based on WasmEdge Runtime is shown as below:
+
+<img src="architecture.jpg" alt="architecture" style="zoom:50%;" />
+
+This project consists of three parts:
 
 - `resnet.py` is a Python script defining a `Resnet` model with PyTorch Python API.
 
