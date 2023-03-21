@@ -17,8 +17,8 @@ mod plugin {
     #[link(wasm_import_module = "wasmedge-nn-training")]
     extern "C" {
         pub fn train(
-            train_images_offset: i32,
-            train_images_size: i32,
+            inp_tensor_arr: i32,
+            inp_tensor_arr_len: i32,
             labels: i64,
             device: i32,
             lr: f64,
