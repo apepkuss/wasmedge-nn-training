@@ -10,6 +10,12 @@ crate-type = ["cdylib"]
 anyhow = "1"
 byteorder = "1.4.3"
 num = "0.4.0"
-tch = "0.10.3"
+tch = { version = "0.10.3", optional = true }
 wasmedge-sdk = {path = "/root/workspace/WasmEdge/bindings/rust/wasmedge-sdk", features = ["ffi"]}
 wasmedge-nn-common = { path = "../wasmedge-nn-common" }
+tensorflow = "0.20.0"
+
+[features]
+default = ["tensorflow"]
+torch = []
+tensorflow = []

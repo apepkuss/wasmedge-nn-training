@@ -10,11 +10,16 @@ use wasmedge_sdk::{
     Caller, ImportObjectBuilder, ValType, WasmValue,
 };
 
-use tch::nn::{Adam, ModuleT, OptimizerConfig, RmsProp, Sgd, VarStore};
-use tch::vision::dataset::Dataset;
-use tch::TrainableCModule;
-use tch::{Device, Tensor};
+#[cfg(feature = "torch")]
+use tch::{
+    nn::{Adam, ModuleT, OptimizerConfig, RmsProp, Sgd, VarStore},
+    vision::dataset::Dataset,
+    Device, Tensor, TrainableCModule,
+};
+#[cfg(feature = "tensorflow")]
+use tensorflow::{Graph, SavedModelBundle, SessionOptions, SessionRunArgs, Tensor};
 
+#[cfg(feature = "torch")]
 #[host_function]
 fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
@@ -305,6 +310,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     Ok(vec![])
 }
 
+#[cfg(feature = "torch")]
 fn train_torch_model(
     dataset: Dataset,
     device: Device,
@@ -380,15 +386,148 @@ fn train_torch_model(
     Ok(())
 }
 
+#[cfg(feature = "tensorflow")]
+#[host_function]
+fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+    //Sigmatures declared when we saved the model
+    let train_input_parameter_input_name = "training_input";
+    let train_input_parameter_target_name = "training_target";
+    let pred_input_parameter_name = "inputs";
+
+    //Names of output nodes of the graph, retrieved with the saved_model_cli command
+    let train_output_parameter_name = "output_0";
+    let pred_output_parameter_name = "output_0";
+
+    //Create some tensors to feed to the model for training, one as input and one as the target value
+    //Note: All tensors must be declared before args!
+    let input_tensor: Tensor<f32> = Tensor::new(&[1, 2]).with_values(&[1.0, 1.0]).unwrap();
+    let target_tensor: Tensor<f32> = Tensor::new(&[1, 1]).with_values(&[2.0]).unwrap();
+
+    //Path of the saved model
+    let save_dir = "examples/tensorflow/custom-model/custom_model";
+
+    //Create a graph
+    let mut graph = Graph::new();
+
+    //Load save model as graph
+    let bundle = SavedModelBundle::load(&SessionOptions::new(), &["serve"], &mut graph, save_dir)
+        .expect("Can't load saved model");
+
+    //Initiate a session
+    let session = &bundle.session;
+
+    //Alternative to saved_model_cli. This will list all signatures in the console when run
+    // let sigs = bundle.meta_graph_def().signatures();
+    // println!("{:?}", sigs);
+
+    //Retrieve the train functions signature
+    let signature_train = bundle.meta_graph_def().get_signature("train").unwrap();
+
+    //Input information
+    let input_info_train = signature_train
+        .get_input(train_input_parameter_input_name)
+        .unwrap();
+    let target_info_train = signature_train
+        .get_input(train_input_parameter_target_name)
+        .unwrap();
+
+    //Output information
+    let output_info_train = signature_train
+        .get_output(train_output_parameter_name)
+        .unwrap();
+
+    //Input operation
+    let input_op_train = graph
+        .operation_by_name_required(&input_info_train.name().name)
+        .unwrap();
+    let target_op_train = graph
+        .operation_by_name_required(&target_info_train.name().name)
+        .unwrap();
+
+    //Output operation
+    let output_op_train = graph
+        .operation_by_name_required(&output_info_train.name().name)
+        .unwrap();
+
+    //The values will be fed to and retrieved from the model with this
+    let mut args = SessionRunArgs::new();
+
+    //Feed the tensors into the graph
+    args.add_feed(&input_op_train, 0, &input_tensor);
+    args.add_feed(&target_op_train, 0, &target_tensor);
+
+    //Fetch result from graph
+    let mut out = args.request_fetch(&output_op_train, 0);
+
+    //Run the session
+    session
+        .run(&mut args)
+        .expect("Error occurred during calculations");
+
+    //Retrieve the result of the operation
+    let loss: f32 = args.fetch(out).unwrap()[0];
+
+    println!("Loss: {:?}", loss);
+
+    //Retrieve the pred functions signature
+    let signature_train = bundle.meta_graph_def().get_signature("pred").unwrap();
+
+    //
+    let input_info_pred = signature_train
+        .get_input(pred_input_parameter_name)
+        .unwrap();
+
+    //
+    let output_info_pred = signature_train
+        .get_output(pred_output_parameter_name)
+        .unwrap();
+
+    //
+    let input_op_pred = graph
+        .operation_by_name_required(&input_info_pred.name().name)
+        .unwrap();
+
+    //
+    let output_op_pred = graph
+        .operation_by_name_required(&output_info_pred.name().name)
+        .unwrap();
+
+    args.add_feed(&input_op_pred, 0, &input_tensor);
+
+    out = args.request_fetch(&output_op_pred, 0);
+
+    //Run the session
+    session
+        .run(&mut args)
+        .expect("Error occurred during calculations");
+
+    let prediction: f32 = args.fetch(out).unwrap()[0];
+
+    println!("Prediction: {:?}\nActual: 2.0", prediction);
+
+    Ok(vec![])
+}
+
 /// Defines Plugin module instance
 unsafe extern "C" fn create_test_module(
     _arg1: *const ffi::WasmEdge_ModuleDescriptor,
 ) -> *mut ffi::WasmEdge_ModuleInstanceContext {
     let module_name = "wasmedge-nn-training";
-    let import = ImportObjectBuilder::new()
-        // add a function
+
+    // create ImportObject builder
+    let io_builder = ImportObjectBuilder::new();
+
+    #[cfg(feature = "torch")]
+    let io_builder = io_builder
         .with_func::<(i32, i32, i64, i32, f64, i32, i64, i32, i32, i32, i32), ()>("train", train)
-        .expect("failed to create set_dataset host function")
+        .expect("failed to create set_dataset host function");
+
+    #[cfg(feature = "tensorflow")]
+    let io_builder = io_builder
+        .with_func::<(), ()>("train", train)
+        .expect("failed to create set_dataset host function");
+
+    let import = io_builder
         .build(module_name)
         .expect("failed to create import object");
 
@@ -419,6 +558,7 @@ pub extern "C" fn plugin_hook() -> *const ffi::WasmEdge_PluginDescriptor {
     plugin.as_raw_ptr()
 }
 
+#[cfg(feature = "torch")]
 pub fn to_tch_tensor(dtype: common::Dtype, dims: &[i64], data: &[u8]) -> tch::Tensor {
     match dtype {
         common::Dtype::F16 => unimplemented!("F16"),
