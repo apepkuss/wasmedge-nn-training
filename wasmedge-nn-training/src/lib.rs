@@ -1,10 +1,8 @@
+extern crate num as num_renamed;
+
 use anyhow::Result;
 use std::io::{self, Write};
-
-extern crate num as num_renamed;
-#[macro_use]
-extern crate num_derive;
-
+use wasmedge_nn_common as common;
 use wasmedge_sdk::{
     error::HostFuncError,
     host_function,
@@ -42,13 +40,13 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     // println!("[plugin] len_tensors: {len_tensors}");
 
     let ptr_tensors = memory
-        .data_pointer(offset_tensors as u32, protocol::SIZE_OF_TENSOR_ARRAY)
+        .data_pointer(offset_tensors as u32, common::SIZE_OF_TENSOR_ARRAY)
         .expect("failed to get data from linear memory");
     // println!("[plugin] ptr_tensor: {:p}", ptr_tensors);
     let slice = unsafe {
         std::slice::from_raw_parts(
             ptr_tensors,
-            protocol::SIZE_OF_TENSOR_ELEMENT as usize * len_tensors as usize,
+            common::SIZE_OF_TENSOR_ELEMENT as usize * len_tensors as usize,
         )
     };
     // println!("[Plugin] len of slice: {}", slice.len());
@@ -60,9 +58,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     let train_images: Tensor = {
         // * extract tenor1
         let offset1 = i32::from_le_bytes(slice[0..4].try_into().unwrap());
-        let slice1 = memory
-            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
-            .unwrap();
+        let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
 
         // parse tensor1's data
         let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
@@ -75,7 +71,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let dims1 = memory
             .read(offset_dims1 as u32, len_dims1 as u32)
             .expect("failed to read memory");
-        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
+        let dims1: Vec<i64> = common::bytes_to_u32_vec(dims1.as_slice())
             .into_iter()
             .map(i64::from)
             .collect();
@@ -99,9 +95,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     let train_labels: Tensor = {
         // * extract tenor2
         let offset1 = i32::from_le_bytes(slice[4..8].try_into().unwrap());
-        let slice1 = memory
-            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
-            .unwrap();
+        let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
 
         // parse tensor2's data
         let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
@@ -114,7 +108,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let dims1 = memory
             .read(offset_dims1 as u32, len_dims1 as u32)
             .expect("failed to read memory");
-        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
+        let dims1: Vec<i64> = common::bytes_to_u32_vec(dims1.as_slice())
             .into_iter()
             .map(i64::from)
             .collect();
@@ -138,9 +132,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     let test_images: Tensor = {
         // * extract tenor3
         let offset1 = i32::from_le_bytes(slice[8..12].try_into().unwrap());
-        let slice1 = memory
-            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
-            .unwrap();
+        let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
 
         // parse tensor3's data
         let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
@@ -153,7 +145,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         let dims1 = memory
             .read(offset_dims1 as u32, len_dims1 as u32)
             .expect("failed to read memory");
-        let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
+        let dims1: Vec<i64> = common::bytes_to_u32_vec(dims1.as_slice())
             .into_iter()
             .map(i64::from)
             .collect();
@@ -177,9 +169,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     let test_labels: Tensor = {
         // * extract tenor4
         let offset1 = i32::from_le_bytes(slice[12..16].try_into().unwrap());
-        let slice1 = memory
-            .read(offset1 as u32, protocol::SIZE_OF_TENSOR)
-            .unwrap();
+        let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
 
         // parse tensor4's data
         let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
@@ -189,17 +179,10 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         // parse tensor4's dimensions
         let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
         let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
-        // let dims1 = memory
-        //     .read(offset_dims1 as u32, len_dims1 as u32)
-        //     .expect("failed to read memory");
-        // let dims1: Vec<i64> = protocol::bytes_to_u32_vec(dims1.as_slice())
-        //     .into_iter()
-        //     .map(i64::from)
-        //     .collect();
         let dims1 = memory
             .read(offset_dims1 as u32, len_dims1 as u32)
             .expect("plugin: test_labels: faied to extract tensor dimensions");
-        let dims1: Vec<i64> = protocol::bytes_to_i32_vec(dims1.as_slice())
+        let dims1: Vec<i64> = common::bytes_to_i32_vec(dims1.as_slice())
             .iter()
             .map(|&c| c as i64)
             .collect();
@@ -273,7 +256,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     } else {
         return Err(HostFuncError::User(8));
     };
-    let optimizer: protocol::Optimizer = num_renamed::FromPrimitive::from_i32(optimizer)
+    let optimizer: common::Optimizer = num_renamed::FromPrimitive::from_i32(optimizer)
         .expect("[Plugin] failed to parse optimizer");
     println!("[Plugin] Optimizer: {:?}", optimizer);
 
@@ -283,7 +266,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     } else {
         return Err(HostFuncError::User(9));
     };
-    let loss_fn: protocol::LossFunction = num_renamed::FromPrimitive::from_i32(loss_fn)
+    let loss_fn: common::LossFunction = num_renamed::FromPrimitive::from_i32(loss_fn)
         .expect("[Plugin] failed to parse loss function");
     println!("[Plugin] Loss function: {:?}", loss_fn);
 
@@ -324,8 +307,8 @@ fn train_torch_model(
     lr: f64,
     epochs: i32,
     batch_size: i64,
-    optimizer: protocol::Optimizer,
-    loss_fn: protocol::LossFunction,
+    optimizer: common::Optimizer,
+    loss_fn: common::LossFunction,
     model_path: &std::path::Path,
 ) -> Result<()> {
     let vs = VarStore::new(device);
@@ -342,13 +325,13 @@ fn train_torch_model(
     println!("[Plugin] Initial accuracy: {:5.2}%", 100. * initial_acc);
 
     let mut opt = match optimizer {
-        protocol::Optimizer::Adam => Adam::default()
+        common::Optimizer::Adam => Adam::default()
             .build(&vs, lr)
             .expect("[Train] failed to create tch::Adam optimizer"),
-        protocol::Optimizer::RmsProp => RmsProp::default()
+        common::Optimizer::RmsProp => RmsProp::default()
             .build(&vs, lr)
             .expect("[Train] failed to create tch::RmsProp optimizer"),
-        protocol::Optimizer::Sgd => Sgd::default()
+        common::Optimizer::Sgd => Sgd::default()
             .build(&vs, lr)
             .expect("[Train] failed to create tch::Sgd optimizer"),
     };
@@ -436,191 +419,18 @@ pub fn to_tch_tensor(dtype: u8, dims: &[i64], data: &[u8]) -> tch::Tensor {
     match dtype {
         0 => unimplemented!("F16"),
         1 => {
-            let data = protocol::bytes_to_f32_vec(data);
+            let data = common::bytes_to_f32_vec(data);
             Tensor::of_slice(data.as_slice()).reshape(dims)
         }
         2 => Tensor::of_slice(data).reshape(dims),
         3 => {
-            let data = protocol::bytes_to_i32_vec(data);
+            let data = common::bytes_to_i32_vec(data);
             Tensor::of_slice(data.as_slice()).reshape(dims)
         }
         4 => {
-            let data = protocol::bytes_to_i64_vec(data);
+            let data = common::bytes_to_i64_vec(data);
             Tensor::of_slice(data.as_slice()).reshape(dims)
         }
         _ => panic!("plugin: train_images: unsupported dtype: {dtype}"),
-    }
-}
-
-// * interface protocol
-
-pub mod protocol {
-    use byteorder::{LittleEndian, ReadBytesExt};
-    use std::io::Cursor;
-
-    pub fn to_bytes<'a, T>(data: &'a [T]) -> &'a [u8] {
-        unsafe {
-            std::slice::from_raw_parts(
-                data.as_ptr() as *const _,
-                data.len() * std::mem::size_of::<T>(),
-            )
-        }
-    }
-
-    pub fn bytes_to_f32_vec(data: &[u8]) -> Vec<f32> {
-        let chunks: Vec<&[u8]> = data.chunks(4).collect();
-        let v: Vec<f32> = chunks
-            .into_iter()
-            .map(|c| {
-                let mut rdr = Cursor::new(c);
-                rdr.read_f32::<LittleEndian>().expect("failed to read")
-            })
-            .collect();
-
-        v.into_iter().collect()
-    }
-
-    pub fn bytes_to_i32_vec(data: &[u8]) -> Vec<i32> {
-        let chunks: Vec<&[u8]> = data.chunks(4).collect();
-        let v: Vec<i32> = chunks
-            .into_iter()
-            .map(|c| {
-                let mut rdr = Cursor::new(c);
-                rdr.read_i32::<LittleEndian>().expect("failed to read")
-            })
-            .collect();
-
-        v.into_iter().collect()
-    }
-
-    pub fn bytes_to_u32_vec(data: &[u8]) -> Vec<u32> {
-        let chunks: Vec<&[u8]> = data.chunks(4).collect();
-        let v: Vec<u32> = chunks
-            .into_iter()
-            .map(|c| {
-                let mut rdr = Cursor::new(c);
-                rdr.read_u32::<LittleEndian>().expect("failed to read")
-            })
-            .collect();
-
-        v.into_iter().collect()
-    }
-
-    pub fn bytes_to_i64_vec(data: &[u8]) -> Vec<i64> {
-        let chunks: Vec<&[u8]> = data.chunks(8).collect();
-        let v: Vec<i64> = chunks
-            .into_iter()
-            .map(|c| {
-                let mut rdr = Cursor::new(c);
-                rdr.read_i64::<LittleEndian>().expect(
-                    format!(
-                        "plugin: protocol: failed to read. input data size: {}",
-                        data.len()
-                    )
-                    .as_str(),
-                )
-            })
-            .collect();
-
-        v.into_iter().collect()
-    }
-
-    #[repr(C)]
-    #[derive(Copy, Clone, Debug)]
-    pub struct Array {
-        pub data: *const u8,
-        pub size: i32,
-    }
-
-    #[repr(C)]
-    #[derive(Clone, Debug)]
-    pub struct MyTensor {
-        pub data: *const u8, // 4 bytes
-        pub data_size: u32,  // 4 bytes
-        pub dims: *const u8, // 4 bytes
-        pub dims_size: u32,  // 4 bytes
-        pub ty: u8,          // 1 byte
-    }
-
-    pub const SIZE_OF_TENSOR: u32 = 20;
-    pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
-    pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
-
-    pub type GraphBuilder<'a> = &'a [u8];
-    pub type GraphBuilderArray<'a> = &'a [GraphBuilder<'a>];
-
-    pub type TensorElement<'a> = &'a Tensor<'a>;
-    pub type TensorArray<'a> = &'a [TensorElement<'a>];
-
-    #[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
-    pub enum Optimizer {
-        Adam,
-        RmsProp,
-        Sgd,
-    }
-
-    #[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
-    pub enum LossFunction {
-        CrossEntropy,
-        CrossEntropyForLogits,
-    }
-
-    pub enum Device {
-        Cpu,
-        Cuda(usize),
-        Mps,
-    }
-
-    #[repr(C)]
-    #[derive(Copy, Clone, Debug)]
-    pub struct Tensor<'a> {
-        pub dimensions: TensorDimensions<'a>,
-        pub type_: TensorType,
-        pub data: TensorData<'a>,
-    }
-
-    pub type TensorData<'a> = &'a [u8];
-    pub type TensorDimensions<'a> = &'a [u32];
-
-    #[repr(transparent)]
-    #[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-    pub struct TensorType(u8);
-    pub const TENSOR_TYPE_F16: TensorType = TensorType(0);
-    pub const TENSOR_TYPE_F32: TensorType = TensorType(1);
-    pub const TENSOR_TYPE_U8: TensorType = TensorType(2);
-    pub const TENSOR_TYPE_I32: TensorType = TensorType(3);
-    pub const TENSOR_TYPE_I64: TensorType = TensorType(4);
-    impl TensorType {
-        pub const fn raw(&self) -> u8 {
-            self.0
-        }
-
-        pub fn name(&self) -> &'static str {
-            match self.0 {
-                0 => "F16",
-                1 => "F32",
-                2 => "U8",
-                3 => "I32",
-                _ => unsafe { core::hint::unreachable_unchecked() },
-            }
-        }
-        pub fn message(&self) -> &'static str {
-            match self.0 {
-                0 => "",
-                1 => "",
-                2 => "",
-                3 => "",
-                _ => unsafe { core::hint::unreachable_unchecked() },
-            }
-        }
-    }
-    impl std::fmt::Debug for TensorType {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("TensorType")
-                .field("code", &self.0)
-                .field("name", &self.name())
-                .field("message", &self.message())
-                .finish()
-        }
     }
 }
