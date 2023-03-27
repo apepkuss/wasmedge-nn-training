@@ -8,6 +8,5 @@ byteorder = "1.4.3"
 # mnist = {version = "0.5.0", features = ["download"]}
 ndarray = "0.15.6"
 num = "0.4.0"
-num-derive = "0.3"
-num-traits = "0.2"
 walkdir = "2.3.2"
+wasmedge-nn-common = { path = "../../../wasmedge-nn-common" }
