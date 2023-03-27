@@ -114,51 +114,17 @@ pub type TensorArray<'a> = &'a [TensorElement<'a>];
 pub struct Tensor<'a> {
     pub data: TensorData<'a>,             // 8 bytes
     pub dimensions: TensorDimensions<'a>, // 8 bytes
-    pub dtype: TensorType,                // 1 bytes
+    pub dtype: Dtype,                     // 1 bytes
 }
 
 pub type TensorData<'a> = &'a [u8];
 pub type TensorDimensions<'a> = &'a [u8];
 
-#[repr(transparent)]
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct TensorType(u8);
-pub const TENSOR_TYPE_F16: TensorType = TensorType(0);
-pub const TENSOR_TYPE_F32: TensorType = TensorType(1);
-pub const TENSOR_TYPE_U8: TensorType = TensorType(2);
-pub const TENSOR_TYPE_I32: TensorType = TensorType(3);
-pub const TENSOR_TYPE_I64: TensorType = TensorType(4);
-impl TensorType {
-    pub const fn raw(&self) -> u8 {
-        self.0
-    }
-
-    pub fn name(&self) -> &'static str {
-        match self.0 {
-            0 => "F16",
-            1 => "F32",
-            2 => "U8",
-            3 => "I32",
-            _ => unsafe { core::hint::unreachable_unchecked() },
-        }
-    }
-
-    pub fn message(&self) -> &'static str {
-        match self.0 {
-            0 => "",
-            1 => "",
-            2 => "",
-            3 => "",
-            _ => unsafe { core::hint::unreachable_unchecked() },
-        }
-    }
-}
-impl std::fmt::Debug for TensorType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("TensorType")
-            .field("code", &self.0)
-            .field("name", &self.name())
-            .field("message", &self.message())
-            .finish()
-    }
+#[derive(Debug, Clone, Copy, PartialEq, FromPrimitive, ToPrimitive)]
+pub enum Dtype {
+    F16,
+    F32,
+    U8,
+    I32,
+    I64,
 }
