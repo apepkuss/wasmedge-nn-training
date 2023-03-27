@@ -51,7 +51,7 @@ fn main() {
     let train_images_dims = common::to_bytes(&train_images_shape);
     let train_images_tensor = common::Tensor {
         dimensions: train_images_dims,
-        dtype: common::TENSOR_TYPE_F32,
+        dtype: common::Dtype::F32,
         data: train_images.as_slice(),
     };
 
@@ -73,7 +73,7 @@ fn main() {
     let train_labels_tensor = common::Tensor {
         data: train_labels.as_slice(),
         dimensions: train_labels_dims,
-        dtype: common::TENSOR_TYPE_I64,
+        dtype: common::Dtype::I64,
     };
 
     dataset.push(&train_labels_tensor);
@@ -93,7 +93,7 @@ fn main() {
 
     let test_images_tensor = common::Tensor {
         dimensions: test_images_dims,
-        dtype: common::TENSOR_TYPE_F32,
+        dtype: common::Dtype::F32,
         data: test_images.as_slice(),
     };
     dataset.push(&test_images_tensor);
@@ -113,7 +113,7 @@ fn main() {
 
     let test_labels_tensor = common::Tensor {
         dimensions: &test_labels_dims,
-        dtype: common::TENSOR_TYPE_I64,
+        dtype: common::Dtype::I64,
         data: test_labels.as_slice(),
     };
 

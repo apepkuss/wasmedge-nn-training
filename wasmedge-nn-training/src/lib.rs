@@ -77,7 +77,8 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
             .collect();
 
         // parse tensor1's type
-        let dtype1 = slice1[16];
+        let dtype1 = num_renamed::FromPrimitive::from_u8(slice1[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
 
         // convert to tch::Tensor for train_images
         to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
@@ -114,7 +115,8 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
             .collect();
 
         // parse tensor2's type
-        let dtype1 = slice1[16];
+        let dtype1 = num_renamed::FromPrimitive::from_u8(slice1[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
 
         // convert to tch::Tensor for train_labels
         to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
@@ -151,7 +153,8 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
             .collect();
 
         // parse tensor3's type
-        let dtype1 = slice1[16];
+        let dtype1 = num_renamed::FromPrimitive::from_u8(slice1[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
 
         // convert to tch::Tensor for test_images
         to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
@@ -188,7 +191,8 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
             .collect();
 
         // parse tensor4's type
-        let dtype1 = slice1[16];
+        let dtype1 = num_renamed::FromPrimitive::from_u8(slice1[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
 
         // convert to tch::Tensor for test_labels
         to_tch_tensor(dtype1, dims1.as_slice(), data1.as_slice())
@@ -415,22 +419,21 @@ pub extern "C" fn plugin_hook() -> *const ffi::WasmEdge_PluginDescriptor {
     plugin.as_raw_ptr()
 }
 
-pub fn to_tch_tensor(dtype: u8, dims: &[i64], data: &[u8]) -> tch::Tensor {
+pub fn to_tch_tensor(dtype: common::Dtype, dims: &[i64], data: &[u8]) -> tch::Tensor {
     match dtype {
-        0 => unimplemented!("F16"),
-        1 => {
+        common::Dtype::F16 => unimplemented!("F16"),
+        common::Dtype::F32 => {
             let data = common::bytes_to_f32_vec(data);
             Tensor::of_slice(data.as_slice()).reshape(dims)
         }
-        2 => Tensor::of_slice(data).reshape(dims),
-        3 => {
+        common::Dtype::U8 => Tensor::of_slice(data).reshape(dims),
+        common::Dtype::I32 => {
             let data = common::bytes_to_i32_vec(data);
             Tensor::of_slice(data.as_slice()).reshape(dims)
         }
-        4 => {
+        common::Dtype::I64 => {
             let data = common::bytes_to_i64_vec(data);
             Tensor::of_slice(data.as_slice()).reshape(dims)
         }
-        _ => panic!("plugin: train_images: unsupported dtype: {dtype}"),
     }
 }
