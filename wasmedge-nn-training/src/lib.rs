@@ -389,6 +389,8 @@ fn train_torch_model(
 #[cfg(feature = "tensorflow")]
 #[host_function]
 fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+    println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
+
     //Sigmatures declared when we saved the model
     let train_input_parameter_input_name = "training_input";
     let train_input_parameter_target_name = "training_target";
