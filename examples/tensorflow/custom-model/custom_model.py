@@ -30,17 +30,17 @@ test_model = custom_model()
 # Compile model
 test_model.compile(optimizer="sgd", loss="mse", metrics=["mae"])
 
-# Fit on some data using the keras fit method
-test_model.fit(
-    [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
-    [[1], [0.0], [1.0], [2.0]],
-    batch_size=1,
-    epochs=100,
-    verbose=0,
-)
+# # Fit on some data using the keras fit method
+# test_model.fit(
+#     [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+#     [[1], [0.0], [1.0], [2.0]],
+#     batch_size=1,
+#     epochs=100,
+#     verbose=0,
+# )
 
-# Predict a value using the keras predict function
-print(f"Test-Prediction: {test_model.predict([[1.0, 0.0]])}")
+# # Predict a value using the keras predict function
+# print(f"Test-Prediction: {test_model.predict([[1.0, 0.0]])}")
 
 # Get concrete function for the call method
 pred_output = test_model.call.get_concrete_function(
