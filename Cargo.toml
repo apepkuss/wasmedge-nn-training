@@ -1,2 +1,2 @@
 [workspace]
-members = ["wasmedge-nn-training", "examples/pytorch/resnet-pytorch", "wasmedge-nn-common", "examples/tensorflow/custom-model/run-custom-model"]
+members = ["wasmedge-nn-training", "examples/pytorch/resnet-pytorch", "wasmedge-nn-common", "examples/tensorflow/custom-model/run-custom-model", "examples/tensorflow/regression/regression-tf"]

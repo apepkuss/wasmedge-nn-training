@@ -16,8 +16,20 @@ use tch::{
     vision::dataset::Dataset,
     Device, Tensor, TrainableCModule,
 };
+
+use rand;
+use std::error::Error;
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
+
 #[cfg(feature = "tensorflow")]
-use tensorflow::{Graph, SavedModelBundle, SessionOptions, SessionRunArgs, Tensor};
+use tensorflow::{
+    self as tf, Code, Graph, ImportGraphDefOptions, SavedModelBundle, Session, SessionOptions,
+    SessionRunArgs, Status,
+};
+
+static ALLOCATOR: std::alloc::System = std::alloc::System;
 
 #[cfg(feature = "torch")]
 #[host_function]
@@ -388,10 +400,13 @@ fn train_torch_model(
 
 #[cfg(feature = "tensorflow")]
 #[host_function]
-fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train_custom_model(
+    caller: Caller,
+    input: Vec<WasmValue>,
+) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
-    //Sigmatures declared when we saved the model
+    //Signatures declared when we saved the model
     let train_input_parameter_input_name = "training_input";
     let train_input_parameter_target_name = "training_target";
     let pred_input_parameter_name = "inputs";
@@ -402,8 +417,8 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
 
     //Create some tensors to feed to the model for training, one as input and one as the target value
     //Note: All tensors must be declared before args!
-    let input_tensor: Tensor<f32> = Tensor::new(&[1, 2]).with_values(&[1.0, 1.0]).unwrap();
-    let target_tensor: Tensor<f32> = Tensor::new(&[1, 1]).with_values(&[2.0]).unwrap();
+    let input_tensor: tf::Tensor<f32> = tf::Tensor::new(&[1, 2]).with_values(&[1.0, 1.0]).unwrap();
+    let target_tensor: tf::Tensor<f32> = tf::Tensor::new(&[1, 1]).with_values(&[2.0]).unwrap();
 
     //Path of the saved model
     let save_dir = "examples/tensorflow/custom-model/custom_model";
@@ -510,6 +525,212 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     Ok(vec![])
 }
 
+#[cfg(feature = "tensorflow")]
+#[host_function]
+fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+    println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
+
+    // check the number of inputs
+    assert_eq!(input.len(), 3);
+
+    // get the linear memory
+    let memory = caller.memory(0).expect("failed to get memory at idex 0");
+
+    let offset_tensors = if input[0].ty() == ValType::I32 {
+        input[0].to_i32()
+    } else {
+        return Err(HostFuncError::User(1));
+    };
+    // println!("[plugin] offset_tensors: {offset_tensors}");
+
+    let len_tensors = if input[1].ty() == ValType::I32 {
+        input[1].to_i32()
+    } else {
+        return Err(HostFuncError::User(2));
+    };
+    // println!("[plugin] len_tensors: {len_tensors}");
+
+    let ptr_tensors = memory
+        .data_pointer(offset_tensors as u32, common::SIZE_OF_TENSOR_ARRAY)
+        .expect("failed to get data from linear memory");
+    // println!("[plugin] ptr_tensor: {:p}", ptr_tensors);
+    let slice = unsafe {
+        std::slice::from_raw_parts(
+            ptr_tensors,
+            common::SIZE_OF_TENSOR_ELEMENT as usize * len_tensors as usize,
+        )
+    };
+    // println!("[Plugin] len of slice: {}", slice.len());
+
+    // * extract training tensor
+
+    print!("[Plugin] Preparing training tensor ... ");
+    io::stdout().flush().unwrap();
+    let tensor_x = {
+        // * extract tenor1
+        let offset1 = i32::from_le_bytes(slice[0..4].try_into().unwrap());
+        let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
+
+        // parse tensor1's data
+        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
+        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
+        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+
+        // parse tensor1's dimensions
+        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
+        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
+        let dims1 = memory
+            .read(offset_dims1 as u32, len_dims1 as u32)
+            .expect("failed to read memory");
+        let dims1: Vec<u64> = common::bytes_to_u32_vec(dims1.as_slice())
+            .into_iter()
+            .map(u64::from)
+            .collect();
+
+        // parse tensor1's type
+        let dtype1: common::Dtype = num_renamed::FromPrimitive::from_u8(slice1[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
+
+        // create tf::Tensor
+        let data = common::bytes_to_f32_vec(data1.as_slice());
+        tf::Tensor::new(dims1.as_slice())
+            .with_values(data.as_slice())
+            .unwrap()
+    };
+    println!("[Done] (dims: {:?})", tensor_x.dims());
+
+    // * extract target tensor
+
+    print!("[Plugin] Preparing target tensor ... ");
+    io::stdout().flush().unwrap();
+    let tensor_y = {
+        // * extract tenor2
+        let offset1 = i32::from_le_bytes(slice[4..8].try_into().unwrap());
+        let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
+
+        // parse tensor2's data
+        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
+        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
+        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+
+        // parse tensor2's dimensions
+        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
+        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
+        let dims1 = memory
+            .read(offset_dims1 as u32, len_dims1 as u32)
+            .expect("failed to read memory");
+        let dims1: Vec<u64> = common::bytes_to_u32_vec(dims1.as_slice())
+            .into_iter()
+            .map(u64::from)
+            .collect();
+
+        // parse tensor2's type
+        let dtype1: common::Dtype = num_renamed::FromPrimitive::from_u8(slice1[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
+
+        // create tf::Tensor
+        let data = common::bytes_to_f32_vec(data1.as_slice());
+        tf::Tensor::new(dims1.as_slice())
+            .with_values(data.as_slice())
+            .unwrap()
+    };
+    println!("[Done] (dims: {:?})", tensor_y.dims());
+
+    // * extract epochs
+    let epochs = if input[2].ty() == ValType::I32 {
+        input[2].to_i32()
+    } else {
+        return Err(HostFuncError::User(3));
+    };
+    println!("[Plugin] Epochs: {epochs}");
+
+    train_regression(tensor_x, tensor_y, epochs).unwrap();
+
+    Ok(vec![])
+}
+
+fn train_regression<T: tf::TensorType>(
+    x: tf::Tensor<T>,
+    y: tf::Tensor<T>,
+    epochs: i32,
+) -> Result<()> {
+    println!("\n*** In train_regression ***\n");
+
+    let filename = "examples/tensorflow/regression/model/model.pb"; // y = w * x + b
+
+    // // Generate some test data.
+
+    // let num_points = 100;
+    // let num_epoch = 201;
+    // let mut x = tf::Tensor::new(&[num_points as u64]);
+    // let mut y = tf::Tensor::new(&[num_points as u64]);
+    // for i in 0..num_points {
+    //     x[i] = (2.0 * rand::random::<f64>() - 1.0) as f32;
+    //     y[i] = w * x[i] + b;
+    // }
+
+    // Load the computation graph defined by regression.py.
+    let mut graph = Graph::new();
+    let mut proto = Vec::new();
+    File::open(filename)?.read_to_end(&mut proto)?;
+    graph.import_graph_def(&proto, &ImportGraphDefOptions::new())?;
+    let session = Session::new(&SessionOptions::new(), &graph)?;
+    let op_x = graph.operation_by_name_required("x")?;
+    let op_y = graph.operation_by_name_required("y")?;
+    let op_init = graph.operation_by_name_required("init")?;
+    let op_train = graph.operation_by_name_required("train")?;
+    let op_w = graph.operation_by_name_required("w")?;
+    let op_b = graph.operation_by_name_required("b")?;
+
+    // Load the test data into the session.
+    let mut init_step = SessionRunArgs::new();
+    init_step.add_target(&op_init);
+    session.run(&mut init_step)?;
+
+    // Train the model.
+    let mut train_step = SessionRunArgs::new();
+    train_step.add_feed(&op_x, 0, &x);
+    train_step.add_feed(&op_y, 0, &y);
+    train_step.add_target(&op_train);
+    for _ in 0..=epochs {
+        session.run(&mut train_step)?;
+    }
+
+    // Grab the data out of the session.
+    let mut output_step = SessionRunArgs::new();
+    let w_ix = output_step.request_fetch(&op_w, 0);
+    let b_ix = output_step.request_fetch(&op_b, 0);
+    session.run(&mut output_step)?;
+
+    // Check our results.
+    let w_hat: f32 = output_step.fetch(w_ix)?[0];
+    let b_hat: f32 = output_step.fetch(b_ix)?[0];
+    let w = 0.1;
+    let b = 0.3;
+    println!(
+        "Checking w: expected {}, got {}. {}",
+        w,
+        w_hat,
+        if (w - w_hat).abs() < 1e-3 {
+            "Success!"
+        } else {
+            "FAIL"
+        }
+    );
+    println!(
+        "Checking b: expected {}, got {}. {}",
+        b,
+        b_hat,
+        if (b - b_hat).abs() < 1e-3 {
+            "Success!"
+        } else {
+            "FAIL"
+        }
+    );
+
+    Ok(())
+}
+
 /// Defines Plugin module instance
 unsafe extern "C" fn create_test_module(
     _arg1: *const ffi::WasmEdge_ModuleDescriptor,
@@ -526,7 +747,7 @@ unsafe extern "C" fn create_test_module(
 
     #[cfg(feature = "tensorflow")]
     let io_builder = io_builder
-        .with_func::<(), ()>("train", train)
+        .with_func::<(i32, i32, i32), ()>("train", train)
         .expect("failed to create set_dataset host function");
 
     let import = io_builder
@@ -566,16 +787,16 @@ pub fn to_tch_tensor(dtype: common::Dtype, dims: &[i64], data: &[u8]) -> tch::Te
         common::Dtype::F16 => unimplemented!("F16"),
         common::Dtype::F32 => {
             let data = common::bytes_to_f32_vec(data);
-            Tensor::of_slice(data.as_slice()).reshape(dims)
+            tch::Tensor::of_slice(data.as_slice()).reshape(dims)
         }
         common::Dtype::U8 => Tensor::of_slice(data).reshape(dims),
         common::Dtype::I32 => {
             let data = common::bytes_to_i32_vec(data);
-            Tensor::of_slice(data.as_slice()).reshape(dims)
+            tch::Tensor::of_slice(data.as_slice()).reshape(dims)
         }
         common::Dtype::I64 => {
             let data = common::bytes_to_i64_vec(data);
-            Tensor::of_slice(data.as_slice()).reshape(dims)
+            tch::Tensor::of_slice(data.as_slice()).reshape(dims)
         }
     }
 }

@@ -77,6 +77,26 @@ pub fn bytes_to_i64_vec(data: &[u8]) -> Vec<i64> {
     v.into_iter().collect()
 }
 
+/// Convert a slice of bytes to a vector of `u64`.
+pub fn bytes_to_u64_vec(data: &[u8]) -> Vec<u64> {
+    let chunks: Vec<&[u8]> = data.chunks(8).collect();
+    let v: Vec<u64> = chunks
+        .into_iter()
+        .map(|c| {
+            let mut rdr = Cursor::new(c);
+            rdr.read_u64::<LittleEndian>().expect(
+                format!(
+                    "plugin: protocol: failed to read. input data size: {}",
+                    data.len()
+                )
+                .as_str(),
+            )
+        })
+        .collect();
+
+    v.into_iter().collect()
+}
+
 #[derive(Debug, PartialEq, FromPrimitive, ToPrimitive)]
 pub enum Optimizer {
     Adam,

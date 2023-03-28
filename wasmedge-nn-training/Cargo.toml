@@ -15,6 +15,8 @@ wasmedge-sdk = {path = "/root/workspace/WasmEdge/bindings/rust/wasmedge-sdk", fe
 wasmedge-nn-common = { path = "../wasmedge-nn-common" }
 tensorflow = "0.20.0"
 
+rand = "0.8.5"
+
 [features]
 default = ["tensorflow"]
 torch = []
