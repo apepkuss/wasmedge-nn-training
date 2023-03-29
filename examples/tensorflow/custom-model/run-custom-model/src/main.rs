@@ -25,7 +25,7 @@ fn main() {
         std::mem::size_of::<common::TensorElement>()
     );
 
-    // train data
+    // training input tensor
     let train_input_data = vec![1.0_f32, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
     let train_input_data_bytes = common::to_bytes(&train_input_data);
     let train_input_dims = [4_u32, 2];
@@ -39,7 +39,7 @@ fn main() {
     );
     dataset.push(&train_input_tensor);
 
-    // target data
+    // training target tensor
     let train_target_data = vec![1.0_f32, 0.0, 1.0, 2.0];
     let train_target_data_bytes = common::to_bytes(&train_target_data);
     let train_target_dims = [4_u32, 1];
@@ -52,6 +52,11 @@ fn main() {
         Some(train_target_name),
     );
     dataset.push(&train_target_tensor);
+
+    // training output tensor
+    // names of output nodes of the graph can be retrieved with the saved_model_cli command
+    let train_output_tensor = common::Tensor::new(&[], &[], common::Dtype::F32, Some("output_0"));
+    dataset.push(&train_output_tensor);
 
     let offset_dataset = dataset.as_ptr() as *const _ as usize as i32;
     let len_dataset = dataset.len() as i32;

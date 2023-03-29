@@ -441,7 +441,6 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     print!("[Plugin] Preparing training tensor ... ");
     io::stdout().flush().unwrap();
 
-    // * extract tenor1
     let offset_train_input = i32::from_le_bytes(slice[0..4].try_into().unwrap());
     let slice_train_input = memory
         .read(offset_train_input as u32, common::SIZE_OF_TENSOR)
@@ -496,13 +495,12 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     print!("[Plugin] Preparing target tensor ... ");
     io::stdout().flush().unwrap();
 
-    // * extract tenor2
     let offset_train_target = i32::from_le_bytes(slice[4..8].try_into().unwrap());
     let slice_train_target = memory
         .read(offset_train_target as u32, common::SIZE_OF_TENSOR)
         .unwrap();
 
-    // parse tensor2's data
+    // parse train_target data
     let offset_train_target_data = i32::from_le_bytes(slice_train_target[0..4].try_into().unwrap());
     let len_train_target_data = i32::from_le_bytes(slice_train_target[4..8].try_into().unwrap());
     let bytes_train_target_data = memory
@@ -512,7 +510,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         )
         .unwrap();
 
-    // parse tensor2's dimensions
+    // parse train_target dimensions
     let offset_train_target_dims =
         i32::from_le_bytes(slice_train_target[8..12].try_into().unwrap());
     let len_train_target_dims = i32::from_le_bytes(slice_train_target[12..16].try_into().unwrap());
@@ -527,12 +525,12 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         .map(u64::from)
         .collect();
 
-    // parse tensor2's type
+    // parse train_target type
     let train_target_dtype: common::Dtype =
         num_renamed::FromPrimitive::from_u8(slice_train_target[16])
             .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
 
-    // parse train_input name
+    // parse train_target name
     let offset_train_target_name =
         i32::from_le_bytes(slice_train_target[20..24].try_into().unwrap());
     let len_train_target_name = i32::from_le_bytes(slice_train_target[24..28].try_into().unwrap());
@@ -557,6 +555,31 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
 
     println!("[Done]");
 
+    // * extract output tensor
+
+    print!("[Plugin] Preparing output tensor ... ");
+    io::stdout().flush().unwrap();
+
+    let offset_train_output = i32::from_le_bytes(slice[8..12].try_into().unwrap());
+    let slice_train_output = memory
+        .read(offset_train_output as u32, common::SIZE_OF_TENSOR)
+        .unwrap();
+
+    // parse train_output name
+    let offset_train_output_name =
+        i32::from_le_bytes(slice_train_output[20..24].try_into().unwrap());
+    let len_train_output_name = i32::from_le_bytes(slice_train_output[24..28].try_into().unwrap());
+    let bytes_train_output_name = memory
+        .read(
+            offset_train_output_name as u32,
+            len_train_output_name as u32,
+        )
+        .expect("failed to read memory");
+    let train_output_name = std::str::from_utf8(bytes_train_output_name.as_slice())
+        .expect("[Plugin] failed to convert to string");
+
+    println!("[Done]");
+
     // * extract epochs
     let epochs = if input[2].ty() == ValType::I32 {
         input[2].to_i32()
@@ -565,7 +588,12 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     };
     println!("[Plugin] Epochs: {epochs}");
 
-    train_custom_model(train_input_tensor, train_target_tensor, epochs);
+    train_custom_model(
+        train_input_tensor,
+        train_target_tensor,
+        &[train_output_name],
+        epochs,
+    );
 
     Ok(vec![])
 }
@@ -573,6 +601,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
 fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
     train_input_tensor: TFTensor<S>,
     train_target_tensor: TFTensor<T>,
+    train_output_node_names: &[&str],
     epochs: i32,
 ) {
     println!("*** In train_custom_model ***\n");
@@ -580,11 +609,11 @@ fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
     //Signatures declared when we saved the model
     // let train_input_parameter_input_name = "training_input";
     // let train_input_parameter_target_name = "training_target";
-    let pred_input_parameter_name = "inputs";
+    // let pred_input_parameter_name = "inputs";
 
     //Names of output nodes of the graph, retrieved with the saved_model_cli command
-    let train_output_parameter_name = "output_0";
-    let pred_output_parameter_name = "output_0";
+    // let train_output_parameter_name = "output_0";
+    // let pred_output_parameter_name = "output_0";
 
     //Create some tensors to feed to the model for training, one as input and one as the target value
     //Note: All tensors must be declared before args!
@@ -629,15 +658,18 @@ fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
     args.add_feed(&target_op_train, 0, &train_target_tensor.tensor);
 
     // Output information
-    let output_info_train = signature_train
-        .get_output(train_output_parameter_name)
-        .unwrap();
-    // Output operation
-    let output_op_train = graph
-        .operation_by_name_required(&output_info_train.name().name)
-        .unwrap();
-    // Fetch result from graph
-    let mut out = args.request_fetch(&output_op_train, 0);
+    let mut output_fetch_tokens = Vec::new();
+    for train_output_node_name in train_output_node_names.into_iter() {
+        let output_info_train = signature_train.get_output(train_output_node_name).unwrap();
+        // Output operation
+        let output_op_train = graph
+            .operation_by_name_required(&output_info_train.name().name)
+            .unwrap();
+        // Fetch result from graph
+        let token = args.request_fetch(&output_op_train, 0);
+
+        output_fetch_tokens.push(token);
+    }
 
     println!("[Plugin] Training model...");
     for i in 0..=epochs {
@@ -649,46 +681,48 @@ fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
             .expect("Error occurred during training");
 
         //Retrieve the result of the operation
-        let loss: f32 = args.fetch(out).unwrap()[0];
-        println!("Loss: {:?}", loss);
+        for (i, output_fetch_token) in output_fetch_tokens.iter().enumerate() {
+            let loss: f32 = args.fetch(*output_fetch_token).unwrap()[0];
+            println!("Loss of output[{i}]: {:?} ", loss);
+        }
     }
     println!("[Done]");
 
-    //Retrieve the pred functions signature
-    let signature_train = bundle.meta_graph_def().get_signature("pred").unwrap();
+    // //Retrieve the pred functions signature
+    // let signature_train = bundle.meta_graph_def().get_signature("pred").unwrap();
 
-    //
-    let input_info_pred = signature_train
-        .get_input(pred_input_parameter_name)
-        .unwrap();
+    // //
+    // let input_info_pred = signature_train
+    //     .get_input(pred_input_parameter_name)
+    //     .unwrap();
 
-    //
-    let output_info_pred = signature_train
-        .get_output(pred_output_parameter_name)
-        .unwrap();
+    // //
+    // let output_info_pred = signature_train
+    //     .get_output(pred_output_parameter_name)
+    //     .unwrap();
 
-    //
-    let input_op_pred = graph
-        .operation_by_name_required(&input_info_pred.name().name)
-        .unwrap();
+    // //
+    // let input_op_pred = graph
+    //     .operation_by_name_required(&input_info_pred.name().name)
+    //     .unwrap();
 
-    //
-    let output_op_pred = graph
-        .operation_by_name_required(&output_info_pred.name().name)
-        .unwrap();
+    // //
+    // let output_op_pred = graph
+    //     .operation_by_name_required(&output_info_pred.name().name)
+    //     .unwrap();
 
-    args.add_feed(&input_op_pred, 0, &train_input_tensor.tensor);
+    // args.add_feed(&input_op_pred, 0, &train_input_tensor.tensor);
 
-    out = args.request_fetch(&output_op_pred, 0);
+    // let mut out = args.request_fetch(&output_op_pred, 0);
 
-    //Run the session
-    session
-        .run(&mut args)
-        .expect("Error occurred during calculations");
+    // //Run the session
+    // session
+    //     .run(&mut args)
+    //     .expect("Error occurred during calculations");
 
-    let prediction: f32 = args.fetch(out).unwrap()[0];
+    // let prediction: f32 = args.fetch(out).unwrap()[0];
 
-    println!("Prediction: {:?}\nActual: 2.0", prediction);
+    // println!("Prediction: {:?}\nActual: 2.0", prediction);
 }
 
 #[cfg(feature = "tensorflow")]
