@@ -33,6 +33,10 @@ fn main() {
     // download_mnist_images();
 
     let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        println!("Usage: wasmedge --dir <host-dir>:<guest-dir> /host/path/to/resnet-pytorch.wasm /gust/path/to/<model_file>");
+        return;
+    }
     // model file
     let model_file = args[1].as_bytes();
 
@@ -49,11 +53,12 @@ fn main() {
     // shape = (batch, channel, row, cols)
     let train_images_shape = [60_000_u32, 1, 28, 28];
     let train_images_dims = common::to_bytes(&train_images_shape);
-    let train_images_tensor = common::Tensor {
-        dimensions: train_images_dims,
-        dtype: common::Dtype::F32,
-        data: train_images.as_slice(),
-    };
+    let train_images_tensor = common::Tensor::new(
+        train_images.as_slice(),
+        train_images_dims,
+        common::Dtype::F32,
+        None,
+    );
 
     dataset.push(&train_images_tensor);
 
@@ -70,11 +75,12 @@ fn main() {
     let train_labels_shape = [60_000_u32];
     let train_labels_dims = common::to_bytes(&train_labels_shape);
 
-    let train_labels_tensor = common::Tensor {
-        data: train_labels.as_slice(),
-        dimensions: train_labels_dims,
-        dtype: common::Dtype::I64,
-    };
+    let train_labels_tensor = common::Tensor::new(
+        train_labels.as_slice(),
+        train_labels_dims,
+        common::Dtype::I64,
+        None,
+    );
 
     dataset.push(&train_labels_tensor);
 
@@ -91,11 +97,12 @@ fn main() {
     let test_images_shape = [10_000_u32, 1, 28, 28];
     let test_images_dims = common::to_bytes(test_images_shape.as_slice());
 
-    let test_images_tensor = common::Tensor {
-        dimensions: test_images_dims,
-        dtype: common::Dtype::F32,
-        data: test_images.as_slice(),
-    };
+    let test_images_tensor = common::Tensor::new(
+        test_images.as_slice(),
+        test_images_dims,
+        common::Dtype::F32,
+        None,
+    );
     dataset.push(&test_images_tensor);
 
     println!("[Done]");
@@ -111,11 +118,12 @@ fn main() {
     let test_labels_shape = [10_000_u32];
     let test_labels_dims = common::to_bytes(test_labels_shape.as_slice());
 
-    let test_labels_tensor = common::Tensor {
-        dimensions: &test_labels_dims,
-        dtype: common::Dtype::I64,
-        data: test_labels.as_slice(),
-    };
+    let test_labels_tensor = common::Tensor::new(
+        test_labels.as_slice(),
+        test_labels_dims,
+        common::Dtype::I64,
+        None,
+    );
 
     dataset.push(&test_labels_tensor);
 

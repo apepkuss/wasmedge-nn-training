@@ -598,6 +598,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
     Ok(vec![])
 }
 
+#[cfg(feature = "tensorflow")]
 fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
     train_input_tensor: TFTensor<S>,
     train_target_tensor: TFTensor<T>,
@@ -849,6 +850,7 @@ fn train_r(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, Host
     Ok(vec![])
 }
 
+#[cfg(feature = "tensorflow")]
 fn train_regression<T: tf::TensorType>(
     x: tf::Tensor<T>,
     y: tf::Tensor<T>,
@@ -1001,12 +1003,14 @@ pub fn to_tch_tensor(dtype: common::Dtype, dims: &[i64], data: &[u8]) -> tch::Te
     }
 }
 
+#[cfg(feature = "tensorflow")]
 #[derive(Debug)]
 pub struct TFDataset<D: tf::TensorType, T: tf::TensorType> {
     pub train_input_tensors: std::collections::HashMap<String, tf::Tensor<D>>,
     pub train_target_tensors: std::collections::HashMap<String, tf::Tensor<T>>,
 }
 
+#[cfg(feature = "tensorflow")]
 #[derive(Debug)]
 pub struct TFTensor<'a, T: tf::TensorType> {
     pub tensor: tf::Tensor<T>,
