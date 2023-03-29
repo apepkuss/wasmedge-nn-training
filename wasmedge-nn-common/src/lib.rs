@@ -116,7 +116,7 @@ pub enum Device {
     Mps,
 }
 
-pub const SIZE_OF_TENSOR: u32 = 20;
+pub const SIZE_OF_TENSOR: u32 = 28;
 pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
 pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
 
@@ -128,17 +128,34 @@ pub type TensorElement<'a> = &'a Tensor<'a>;
 // size: 8 bytes
 pub type TensorArray<'a> = &'a [TensorElement<'a>];
 
-// size: 20 bytes
+// size: 28 bytes
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 pub struct Tensor<'a> {
     pub data: TensorData<'a>,             // 8 bytes
     pub dimensions: TensorDimensions<'a>, // 8 bytes
     pub dtype: Dtype,                     // 1 bytes
+    pub name: TensorName<'a>,             // 8 bytes
+}
+impl<'a> Tensor<'a> {
+    pub fn new(data: &'a [u8], dimensions: &'a [u8], dtype: Dtype, name: Option<&'a str>) -> Self {
+        let name = match name {
+            Some(name) => name.as_bytes(),
+            None => &[],
+        };
+
+        Self {
+            data,
+            dimensions,
+            dtype,
+            name,
+        }
+    }
 }
 
 pub type TensorData<'a> = &'a [u8];
 pub type TensorDimensions<'a> = &'a [u8];
+pub type TensorName<'a> = &'a [u8];
 
 #[derive(Debug, Clone, Copy, PartialEq, FromPrimitive, ToPrimitive)]
 pub enum Dtype {

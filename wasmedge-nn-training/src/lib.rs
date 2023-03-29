@@ -1,6 +1,7 @@
 extern crate num as num_renamed;
 
 use anyhow::Result;
+use std::collections::HashMap;
 use std::io::{self, Write};
 use wasmedge_nn_common as common;
 use wasmedge_sdk::{
@@ -400,15 +401,185 @@ fn train_torch_model(
 
 #[cfg(feature = "tensorflow")]
 #[host_function]
-fn train_custom_model(
-    caller: Caller,
-    input: Vec<WasmValue>,
-) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
+    // check the number of inputs
+    assert_eq!(input.len(), 3);
+
+    // get the linear memory
+    let memory = caller.memory(0).expect("failed to get memory at idex 0");
+
+    let offset_tensors = if input[0].ty() == ValType::I32 {
+        input[0].to_i32()
+    } else {
+        return Err(HostFuncError::User(1));
+    };
+    // println!("[plugin] offset_tensors: {offset_tensors}");
+
+    let len_tensors = if input[1].ty() == ValType::I32 {
+        input[1].to_i32()
+    } else {
+        return Err(HostFuncError::User(2));
+    };
+    // println!("[plugin] len_tensors: {len_tensors}");
+
+    let ptr_tensors = memory
+        .data_pointer(offset_tensors as u32, common::SIZE_OF_TENSOR_ARRAY)
+        .expect("failed to get data from linear memory");
+    // println!("[plugin] ptr_tensor: {:p}", ptr_tensors);
+    let slice = unsafe {
+        std::slice::from_raw_parts(
+            ptr_tensors,
+            common::SIZE_OF_TENSOR_ELEMENT as usize * len_tensors as usize,
+        )
+    };
+    // println!("[Plugin] len of slice: {}", slice.len());
+
+    // * extract training tensor
+
+    print!("[Plugin] Preparing training tensor ... ");
+    io::stdout().flush().unwrap();
+
+    // * extract tenor1
+    let offset_train_input = i32::from_le_bytes(slice[0..4].try_into().unwrap());
+    let slice_train_input = memory
+        .read(offset_train_input as u32, common::SIZE_OF_TENSOR)
+        .unwrap();
+
+    // parse train_input data
+    let offset_train_input_data = i32::from_le_bytes(slice_train_input[0..4].try_into().unwrap());
+    let len_train_input_data = i32::from_le_bytes(slice_train_input[4..8].try_into().unwrap());
+    let bytes_train_input_data = memory
+        .read(offset_train_input_data as u32, len_train_input_data as u32)
+        .unwrap();
+
+    // parse train_input dimensions
+    let offset_train_input_dims = i32::from_le_bytes(slice_train_input[8..12].try_into().unwrap());
+    let len_train_input_dims = i32::from_le_bytes(slice_train_input[12..16].try_into().unwrap());
+    let bytes_train_input_dims = memory
+        .read(offset_train_input_dims as u32, len_train_input_dims as u32)
+        .expect("failed to read memory");
+    let train_input_dims: Vec<u64> = common::bytes_to_u32_vec(bytes_train_input_dims.as_slice())
+        .into_iter()
+        .map(u64::from)
+        .collect();
+
+    // parse train_input type
+    let train_input_dtype: common::Dtype =
+        num_renamed::FromPrimitive::from_u8(slice_train_input[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice_train_input[16]}");
+
+    // parse train_input name
+    let offset_train_input_name = i32::from_le_bytes(slice_train_input[20..24].try_into().unwrap());
+    let len_train_input_name = i32::from_le_bytes(slice_train_input[24..28].try_into().unwrap());
+    let bytes_train_input_name = memory
+        .read(offset_train_input_name as u32, len_train_input_name as u32)
+        .expect("failed to read memory");
+    let train_input_name = std::str::from_utf8(bytes_train_input_name.as_slice())
+        .expect("[Plugin] failed to convert to string");
+
+    // create TFTensor
+    let train_input_data = common::bytes_to_f32_vec(bytes_train_input_data.as_slice());
+    // println!("train_input_data: {:?}", &train_input_data);
+    let train_input_tensor = TFTensor {
+        tensor: tf::Tensor::new(train_input_dims.as_slice())
+            .with_values(train_input_data.as_slice())
+            .unwrap(),
+        name: train_input_name,
+    };
+
+    println!("[Done]");
+
+    // * extract target tensor
+
+    print!("[Plugin] Preparing target tensor ... ");
+    io::stdout().flush().unwrap();
+
+    // * extract tenor2
+    let offset_train_target = i32::from_le_bytes(slice[4..8].try_into().unwrap());
+    let slice_train_target = memory
+        .read(offset_train_target as u32, common::SIZE_OF_TENSOR)
+        .unwrap();
+
+    // parse tensor2's data
+    let offset_train_target_data = i32::from_le_bytes(slice_train_target[0..4].try_into().unwrap());
+    let len_train_target_data = i32::from_le_bytes(slice_train_target[4..8].try_into().unwrap());
+    let bytes_train_target_data = memory
+        .read(
+            offset_train_target_data as u32,
+            len_train_target_data as u32,
+        )
+        .unwrap();
+
+    // parse tensor2's dimensions
+    let offset_train_target_dims =
+        i32::from_le_bytes(slice_train_target[8..12].try_into().unwrap());
+    let len_train_target_dims = i32::from_le_bytes(slice_train_target[12..16].try_into().unwrap());
+    let bytes_train_target_dims = memory
+        .read(
+            offset_train_target_dims as u32,
+            len_train_target_dims as u32,
+        )
+        .expect("failed to read memory");
+    let train_target_dims: Vec<u64> = common::bytes_to_u32_vec(bytes_train_target_dims.as_slice())
+        .into_iter()
+        .map(u64::from)
+        .collect();
+
+    // parse tensor2's type
+    let train_target_dtype: common::Dtype =
+        num_renamed::FromPrimitive::from_u8(slice_train_target[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
+
+    // parse train_input name
+    let offset_train_target_name =
+        i32::from_le_bytes(slice_train_target[20..24].try_into().unwrap());
+    let len_train_target_name = i32::from_le_bytes(slice_train_target[24..28].try_into().unwrap());
+    let bytes_train_target_name = memory
+        .read(
+            offset_train_target_name as u32,
+            len_train_target_name as u32,
+        )
+        .expect("failed to read memory");
+    let train_target_name = std::str::from_utf8(bytes_train_target_name.as_slice())
+        .expect("[Plugin] failed to convert to string");
+
+    // create TFTensor
+    let train_target_data = common::bytes_to_f32_vec(bytes_train_target_data.as_slice());
+    // println!("train_target_data: {:?}", &train_target_data);
+    let train_target_tensor = TFTensor {
+        tensor: tf::Tensor::new(train_target_dims.as_slice())
+            .with_values(train_target_data.as_slice())
+            .unwrap(),
+        name: train_target_name,
+    };
+
+    println!("[Done]");
+
+    // * extract epochs
+    let epochs = if input[2].ty() == ValType::I32 {
+        input[2].to_i32()
+    } else {
+        return Err(HostFuncError::User(3));
+    };
+    println!("[Plugin] Epochs: {epochs}");
+
+    train_custom_model(train_input_tensor, train_target_tensor, epochs);
+
+    Ok(vec![])
+}
+
+fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
+    train_input_tensor: TFTensor<S>,
+    train_target_tensor: TFTensor<T>,
+    epochs: i32,
+) {
+    println!("*** In train_custom_model ***\n");
+
     //Signatures declared when we saved the model
-    let train_input_parameter_input_name = "training_input";
-    let train_input_parameter_target_name = "training_target";
+    // let train_input_parameter_input_name = "training_input";
+    // let train_input_parameter_target_name = "training_target";
     let pred_input_parameter_name = "inputs";
 
     //Names of output nodes of the graph, retrieved with the saved_model_cli command
@@ -417,8 +588,6 @@ fn train_custom_model(
 
     //Create some tensors to feed to the model for training, one as input and one as the target value
     //Note: All tensors must be declared before args!
-    let input_tensor: tf::Tensor<f32> = tf::Tensor::new(&[1, 2]).with_values(&[1.0, 1.0]).unwrap();
-    let target_tensor: tf::Tensor<f32> = tf::Tensor::new(&[1, 1]).with_values(&[2.0]).unwrap();
 
     //Path of the saved model
     let save_dir = "examples/tensorflow/custom-model/custom_model";
@@ -433,58 +602,57 @@ fn train_custom_model(
     //Initiate a session
     let session = &bundle.session;
 
-    //Alternative to saved_model_cli. This will list all signatures in the console when run
+    //The values will be fed to and retrieved from the model with this
+    let mut args = SessionRunArgs::new();
+
+    // ! Alternative to saved_model_cli. This will list all signatures in the console when run
     // let sigs = bundle.meta_graph_def().signatures();
-    // println!("{:?}", sigs);
+    // println!("*** signatures: {:?}", sigs);
 
     //Retrieve the train functions signature
     let signature_train = bundle.meta_graph_def().get_signature("train").unwrap();
 
-    //Input information
-    let input_info_train = signature_train
-        .get_input(train_input_parameter_input_name)
-        .unwrap();
-    let target_info_train = signature_train
-        .get_input(train_input_parameter_target_name)
-        .unwrap();
-
-    //Output information
-    let output_info_train = signature_train
-        .get_output(train_output_parameter_name)
-        .unwrap();
-
-    //Input operation
+    // Input information
+    let input_info_train = signature_train.get_input(train_input_tensor.name).unwrap();
     let input_op_train = graph
         .operation_by_name_required(&input_info_train.name().name)
         .unwrap();
+    // Feed the input tensor into the graph
+    args.add_feed(&input_op_train, 0, &train_input_tensor.tensor);
+
+    // Target information
+    let target_info_train = signature_train.get_input(train_target_tensor.name).unwrap();
     let target_op_train = graph
         .operation_by_name_required(&target_info_train.name().name)
         .unwrap();
+    // Feed the target tensor into the graph
+    args.add_feed(&target_op_train, 0, &train_target_tensor.tensor);
 
-    //Output operation
+    // Output information
+    let output_info_train = signature_train
+        .get_output(train_output_parameter_name)
+        .unwrap();
+    // Output operation
     let output_op_train = graph
         .operation_by_name_required(&output_info_train.name().name)
         .unwrap();
-
-    //The values will be fed to and retrieved from the model with this
-    let mut args = SessionRunArgs::new();
-
-    //Feed the tensors into the graph
-    args.add_feed(&input_op_train, 0, &input_tensor);
-    args.add_feed(&target_op_train, 0, &target_tensor);
-
-    //Fetch result from graph
+    // Fetch result from graph
     let mut out = args.request_fetch(&output_op_train, 0);
 
-    //Run the session
-    session
-        .run(&mut args)
-        .expect("Error occurred during calculations");
+    println!("[Plugin] Training model...");
+    for i in 0..=epochs {
+        print!("\tEpoch[{:?}]: ", i);
+        io::stdout().flush().unwrap();
 
-    //Retrieve the result of the operation
-    let loss: f32 = args.fetch(out).unwrap()[0];
+        session
+            .run(&mut args)
+            .expect("Error occurred during training");
 
-    println!("Loss: {:?}", loss);
+        //Retrieve the result of the operation
+        let loss: f32 = args.fetch(out).unwrap()[0];
+        println!("Loss: {:?}", loss);
+    }
+    println!("[Done]");
 
     //Retrieve the pred functions signature
     let signature_train = bundle.meta_graph_def().get_signature("pred").unwrap();
@@ -509,7 +677,7 @@ fn train_custom_model(
         .operation_by_name_required(&output_info_pred.name().name)
         .unwrap();
 
-    args.add_feed(&input_op_pred, 0, &input_tensor);
+    args.add_feed(&input_op_pred, 0, &train_input_tensor.tensor);
 
     out = args.request_fetch(&output_op_pred, 0);
 
@@ -521,13 +689,11 @@ fn train_custom_model(
     let prediction: f32 = args.fetch(out).unwrap()[0];
 
     println!("Prediction: {:?}\nActual: 2.0", prediction);
-
-    Ok(vec![])
 }
 
 #[cfg(feature = "tensorflow")]
 #[host_function]
-fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train_r(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
@@ -799,4 +965,16 @@ pub fn to_tch_tensor(dtype: common::Dtype, dims: &[i64], data: &[u8]) -> tch::Te
             tch::Tensor::of_slice(data.as_slice()).reshape(dims)
         }
     }
+}
+
+#[derive(Debug)]
+pub struct TFDataset<D: tf::TensorType, T: tf::TensorType> {
+    pub train_input_tensors: std::collections::HashMap<String, tf::Tensor<D>>,
+    pub train_target_tensors: std::collections::HashMap<String, tf::Tensor<T>>,
+}
+
+#[derive(Debug)]
+pub struct TFTensor<'a, T: tf::TensorType> {
+    pub tensor: tf::Tensor<T>,
+    pub name: &'a str,
 }
