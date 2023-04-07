@@ -24,30 +24,34 @@ fn main() {
 
     let mut dataset: Vec<&common::Tensor> = vec![];
 
+    // training input tensor
     let data_x = common::to_bytes(&x);
     let dims_x = [100_u32];
     let dims_x_bytes = common::to_bytes(&dims_x);
-    let tensor_x = common::Tensor {
-        data: data_x,
-        dimensions: dims_x_bytes,
-        dtype: common::Dtype::F32,
-    };
+    let name_x = "x";
+    let tensor_x = common::Tensor::new(data_x, dims_x_bytes, common::Dtype::F32, Some(name_x));
     dataset.push(&tensor_x);
 
+    // training target tensor
     let data_y = common::to_bytes(&y);
     let dims_y = [100_u32];
     let dims_y_bytes = common::to_bytes(&dims_y);
-    let tensor_y = common::Tensor {
-        data: data_y,
-        dimensions: dims_y_bytes,
-        dtype: common::Dtype::F32,
-    };
+    let name_y = "y";
+    let tensor_y = common::Tensor::new(data_y, dims_y_bytes, common::Dtype::F32, Some(name_y));
     dataset.push(&tensor_y);
+
+    // training output tensor
+    // names of output nodes of the graph can be retrieved with the saved_model_cli command
+    let train_output_w_tensor = common::Tensor::new(&[], &[], common::Dtype::F32, Some("w"));
+    dataset.push(&train_output_w_tensor);
+
+    let train_output_b_tensor = common::Tensor::new(&[], &[], common::Dtype::F32, Some("b"));
+    dataset.push(&train_output_b_tensor);
 
     let offset_dataset = dataset.as_ptr() as *const _ as usize as i32;
     let len_dataset = dataset.len() as i32;
 
     unsafe {
-        plugin::train(offset_dataset, len_dataset, 200);
+        plugin::train(offset_dataset, len_dataset, 20);
     }
 }

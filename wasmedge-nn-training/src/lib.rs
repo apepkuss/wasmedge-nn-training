@@ -26,8 +26,8 @@ use std::path::Path;
 
 #[cfg(feature = "tensorflow")]
 use tensorflow::{
-    self as tf, Code, Graph, ImportGraphDefOptions, SavedModelBundle, Session, SessionOptions,
-    SessionRunArgs, Status,
+    self as tf, Code, FetchToken, Graph, ImportGraphDefOptions, SavedModelBundle, Session,
+    SessionOptions, SessionRunArgs, Status,
 };
 
 static ALLOCATOR: std::alloc::System = std::alloc::System;
@@ -401,7 +401,7 @@ fn train_torch_model(
 
 #[cfg(feature = "tensorflow")]
 #[host_function]
-fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train_c(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
@@ -728,7 +728,7 @@ fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
 
 #[cfg(feature = "tensorflow")]
 #[host_function]
-fn train_r(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
@@ -767,75 +767,178 @@ fn train_r(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, Host
 
     print!("[Plugin] Preparing training tensor ... ");
     io::stdout().flush().unwrap();
-    let tensor_x = {
-        // * extract tenor1
-        let offset1 = i32::from_le_bytes(slice[0..4].try_into().unwrap());
-        let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
 
-        // parse tensor1's data
-        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
-        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
-        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+    // * train_input tensor
+    let offset_train_input = i32::from_le_bytes(slice[0..4].try_into().unwrap());
+    let slice_train_input = memory
+        .read(offset_train_input as u32, common::SIZE_OF_TENSOR)
+        .unwrap();
 
-        // parse tensor1's dimensions
-        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
-        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
-        let dims1 = memory
-            .read(offset_dims1 as u32, len_dims1 as u32)
-            .expect("failed to read memory");
-        let dims1: Vec<u64> = common::bytes_to_u32_vec(dims1.as_slice())
-            .into_iter()
-            .map(u64::from)
-            .collect();
+    // parse train_input data
+    let offset_train_input_data = i32::from_le_bytes(slice_train_input[0..4].try_into().unwrap());
+    let len_train_input_data = i32::from_le_bytes(slice_train_input[4..8].try_into().unwrap());
+    let bytes_train_input_data = memory
+        .read(offset_train_input_data as u32, len_train_input_data as u32)
+        .unwrap();
 
-        // parse tensor1's type
-        let dtype1: common::Dtype = num_renamed::FromPrimitive::from_u8(slice1[16])
-            .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
+    // parse train_input dimensions
+    let offset_train_input_dims = i32::from_le_bytes(slice_train_input[8..12].try_into().unwrap());
+    let len_train_input_dims = i32::from_le_bytes(slice_train_input[12..16].try_into().unwrap());
+    let bytes_train_input_dims = memory
+        .read(offset_train_input_dims as u32, len_train_input_dims as u32)
+        .expect("failed to read memory");
+    let train_input_dims: Vec<u64> = common::bytes_to_u32_vec(bytes_train_input_dims.as_slice())
+        .into_iter()
+        .map(u64::from)
+        .collect();
 
-        // create tf::Tensor
-        let data = common::bytes_to_f32_vec(data1.as_slice());
-        tf::Tensor::new(dims1.as_slice())
-            .with_values(data.as_slice())
-            .unwrap()
+    // parse train_input type
+    let train_input_dtype: common::Dtype =
+        num_renamed::FromPrimitive::from_u8(slice_train_input[16])
+            .expect("[Plugin] failed to parse tensor's dtype: {slice_train_input[16]}");
+
+    // parse train_input name
+    let offset_train_input_name = i32::from_le_bytes(slice_train_input[20..24].try_into().unwrap());
+    let len_train_input_name = i32::from_le_bytes(slice_train_input[24..28].try_into().unwrap());
+    let bytes_train_input_name = memory
+        .read(offset_train_input_name as u32, len_train_input_name as u32)
+        .expect("failed to read memory");
+    let train_input_name = std::str::from_utf8(bytes_train_input_name.as_slice())
+        .expect("[Plugin] failed to convert to string");
+
+    // create TFTensor
+    let train_input_data = common::bytes_to_f32_vec(bytes_train_input_data.as_slice());
+    // println!("train_input_data: {:?}", &train_input_data);
+    let train_input_tensor = TFTensor {
+        tensor: tf::Tensor::new(train_input_dims.as_slice())
+            .with_values(train_input_data.as_slice())
+            .unwrap(),
+        name: train_input_name,
     };
-    println!("[Done] (dims: {:?})", tensor_x.dims());
+
+    println!("[Done]");
 
     // * extract target tensor
 
     print!("[Plugin] Preparing target tensor ... ");
     io::stdout().flush().unwrap();
-    let tensor_y = {
-        // * extract tenor2
-        let offset1 = i32::from_le_bytes(slice[4..8].try_into().unwrap());
-        let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
 
-        // parse tensor2's data
-        let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
-        let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
-        let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+    // train_target tensor
+    let offset_train_target = i32::from_le_bytes(slice[4..8].try_into().unwrap());
+    let slice_train_target = memory
+        .read(offset_train_target as u32, common::SIZE_OF_TENSOR)
+        .unwrap();
 
-        // parse tensor2's dimensions
-        let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
-        let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
-        let dims1 = memory
-            .read(offset_dims1 as u32, len_dims1 as u32)
-            .expect("failed to read memory");
-        let dims1: Vec<u64> = common::bytes_to_u32_vec(dims1.as_slice())
-            .into_iter()
-            .map(u64::from)
-            .collect();
+    // parse train_target data
+    let offset_train_target_data = i32::from_le_bytes(slice_train_target[0..4].try_into().unwrap());
+    let len_train_target_data = i32::from_le_bytes(slice_train_target[4..8].try_into().unwrap());
+    let bytes_train_target_data = memory
+        .read(
+            offset_train_target_data as u32,
+            len_train_target_data as u32,
+        )
+        .unwrap();
 
-        // parse tensor2's type
-        let dtype1: common::Dtype = num_renamed::FromPrimitive::from_u8(slice1[16])
+    // parse train_target dimensions
+    let offset_train_target_dims =
+        i32::from_le_bytes(slice_train_target[8..12].try_into().unwrap());
+    let len_train_target_dims = i32::from_le_bytes(slice_train_target[12..16].try_into().unwrap());
+    let bytes_train_target_dims = memory
+        .read(
+            offset_train_target_dims as u32,
+            len_train_target_dims as u32,
+        )
+        .expect("failed to read memory");
+    let train_target_dims: Vec<u64> = common::bytes_to_u32_vec(bytes_train_target_dims.as_slice())
+        .into_iter()
+        .map(u64::from)
+        .collect();
+
+    // parse train_target type
+    let train_target_dtype: common::Dtype =
+        num_renamed::FromPrimitive::from_u8(slice_train_target[16])
             .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
 
-        // create tf::Tensor
-        let data = common::bytes_to_f32_vec(data1.as_slice());
-        tf::Tensor::new(dims1.as_slice())
-            .with_values(data.as_slice())
-            .unwrap()
+    // parse train_target name
+    let offset_train_target_name =
+        i32::from_le_bytes(slice_train_target[20..24].try_into().unwrap());
+    let len_train_target_name = i32::from_le_bytes(slice_train_target[24..28].try_into().unwrap());
+    let bytes_train_target_name = memory
+        .read(
+            offset_train_target_name as u32,
+            len_train_target_name as u32,
+        )
+        .expect("failed to read memory");
+    let train_target_name = std::str::from_utf8(bytes_train_target_name.as_slice())
+        .expect("[Plugin] failed to convert to string");
+
+    // create TFTensor
+    let train_target_data = common::bytes_to_f32_vec(bytes_train_target_data.as_slice());
+    // println!("train_target_data: {:?}", &train_target_data);
+    let train_target_tensor = TFTensor {
+        tensor: tf::Tensor::new(train_target_dims.as_slice())
+            .with_values(train_target_data.as_slice())
+            .unwrap(),
+        name: train_target_name,
     };
-    println!("[Done] (dims: {:?})", tensor_y.dims());
+
+    println!("[Done]");
+
+    // * extract output_w tensor
+
+    print!("[Plugin] Preparing output_w tensor ... ");
+    io::stdout().flush().unwrap();
+
+    // train_output_w tensor
+    let offset_train_w_output = i32::from_le_bytes(slice[8..12].try_into().unwrap());
+    let slice_train_w_output = memory
+        .read(offset_train_w_output as u32, common::SIZE_OF_TENSOR)
+        .unwrap();
+
+    // parse train_output_w name
+    let offset_train_output_w_name =
+        i32::from_le_bytes(slice_train_w_output[20..24].try_into().unwrap());
+    let len_train_output_w_name =
+        i32::from_le_bytes(slice_train_w_output[24..28].try_into().unwrap());
+    let bytes_train_output_w_name = memory
+        .read(
+            offset_train_output_w_name as u32,
+            len_train_output_w_name as u32,
+        )
+        .expect("failed to read memory");
+    let train_output_w_name = std::str::from_utf8(bytes_train_output_w_name.as_slice())
+        .expect("[Plugin] failed to convert to string");
+    println!("train_output_w_name: {train_output_w_name}");
+
+    println!("[Done]");
+
+    // * extract output_b tensor
+
+    print!("[Plugin] Preparing output_w tensor ... ");
+    io::stdout().flush().unwrap();
+
+    // train_output_b tensor
+    let offset_train_b_output = i32::from_le_bytes(slice[12..16].try_into().unwrap());
+    let slice_train_b_output = memory
+        .read(offset_train_b_output as u32, common::SIZE_OF_TENSOR)
+        .unwrap();
+
+    // parse train_output_b name
+    let offset_train_output_b_name =
+        i32::from_le_bytes(slice_train_b_output[20..24].try_into().unwrap());
+    let len_train_output_b_name =
+        i32::from_le_bytes(slice_train_b_output[24..28].try_into().unwrap());
+    let bytes_train_output_b_name = memory
+        .read(
+            offset_train_output_b_name as u32,
+            len_train_output_b_name as u32,
+        )
+        .expect("failed to read memory");
+    let train_output_b_name = std::str::from_utf8(bytes_train_output_b_name.as_slice())
+        .expect("[Plugin] failed to convert to string");
+    println!("train_output_b_name: {train_output_b_name}");
+
+    println!("[Done]");
 
     // * extract epochs
     let epochs = if input[2].ty() == ValType::I32 {
@@ -845,16 +948,109 @@ fn train_r(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, Host
     };
     println!("[Plugin] Epochs: {epochs}");
 
-    train_regression(tensor_x, tensor_y, epochs).unwrap();
+    // // * extract training tensor
+
+    // print!("[Plugin] Preparing training tensor ... ");
+    // io::stdout().flush().unwrap();
+    // let tensor_x = {
+    //     // * extract tenor1
+    //     let offset1 = i32::from_le_bytes(slice[0..4].try_into().unwrap());
+    //     let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
+
+    //     // parse tensor1's data
+    //     let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
+    //     let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
+    //     let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+
+    //     // parse tensor1's dimensions
+    //     let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
+    //     let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
+    //     let dims1 = memory
+    //         .read(offset_dims1 as u32, len_dims1 as u32)
+    //         .expect("failed to read memory");
+    //     let dims1: Vec<u64> = common::bytes_to_u32_vec(dims1.as_slice())
+    //         .into_iter()
+    //         .map(u64::from)
+    //         .collect();
+
+    //     // parse tensor1's type
+    //     let dtype1: common::Dtype = num_renamed::FromPrimitive::from_u8(slice1[16])
+    //         .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
+
+    //     // create tf::Tensor
+    //     let data = common::bytes_to_f32_vec(data1.as_slice());
+    //     tf::Tensor::new(dims1.as_slice())
+    //         .with_values(data.as_slice())
+    //         .unwrap()
+    // };
+    // println!("[Done] (dims: {:?})", tensor_x.dims());
+
+    // // * extract target tensor
+
+    // print!("[Plugin] Preparing target tensor ... ");
+    // io::stdout().flush().unwrap();
+    // let tensor_y = {
+    //     // * extract tenor2
+    //     let offset1 = i32::from_le_bytes(slice[4..8].try_into().unwrap());
+    //     let slice1 = memory.read(offset1 as u32, common::SIZE_OF_TENSOR).unwrap();
+
+    //     // parse tensor2's data
+    //     let offset_data1 = i32::from_le_bytes(slice1[0..4].try_into().unwrap());
+    //     let len_data1 = i32::from_le_bytes(slice1[4..8].try_into().unwrap());
+    //     let data1 = memory.read(offset_data1 as u32, len_data1 as u32).unwrap();
+
+    //     // parse tensor2's dimensions
+    //     let offset_dims1 = i32::from_le_bytes(slice1[8..12].try_into().unwrap());
+    //     let len_dims1 = i32::from_le_bytes(slice1[12..16].try_into().unwrap());
+    //     let dims1 = memory
+    //         .read(offset_dims1 as u32, len_dims1 as u32)
+    //         .expect("failed to read memory");
+    //     let dims1: Vec<u64> = common::bytes_to_u32_vec(dims1.as_slice())
+    //         .into_iter()
+    //         .map(u64::from)
+    //         .collect();
+
+    //     // parse tensor2's type
+    //     let dtype1: common::Dtype = num_renamed::FromPrimitive::from_u8(slice1[16])
+    //         .expect("[Plugin] failed to parse tensor's dtype: {slice1[16]}");
+
+    //     // create tf::Tensor
+    //     let data = common::bytes_to_f32_vec(data1.as_slice());
+    //     tf::Tensor::new(dims1.as_slice())
+    //         .with_values(data.as_slice())
+    //         .unwrap()
+    // };
+    // println!("[Done] (dims: {:?})", tensor_y.dims());
+
+    // * extract epochs
+    let epochs = if input[2].ty() == ValType::I32 {
+        input[2].to_i32()
+    } else {
+        return Err(HostFuncError::User(3));
+    };
+    println!("[Plugin] Epochs: {epochs}");
+
+    // train_regression(tensor_x, tensor_y, epochs).unwrap();
+    train_regression(
+        train_input_tensor,
+        train_target_tensor,
+        &[train_output_w_name, train_output_b_name],
+        epochs,
+    )
+    .unwrap();
 
     Ok(vec![])
 }
 
 #[cfg(feature = "tensorflow")]
-fn train_regression<T: tf::TensorType>(
-    x: tf::Tensor<T>,
-    y: tf::Tensor<T>,
+fn train_regression<S: tf::TensorType, T: tf::TensorType>(
+    train_input_tensor: TFTensor<S>,
+    train_target_tensor: TFTensor<T>,
+    train_output_node_names: &[&str],
     epochs: i32,
+    // x: tf::Tensor<T>,
+    // y: tf::Tensor<T>,
+    // epochs: i32,
 ) -> Result<()> {
     println!("\n*** In train_regression ***\n");
 
@@ -876,59 +1072,108 @@ fn train_regression<T: tf::TensorType>(
     let mut proto = Vec::new();
     File::open(filename)?.read_to_end(&mut proto)?;
     graph.import_graph_def(&proto, &ImportGraphDefOptions::new())?;
-    let session = Session::new(&SessionOptions::new(), &graph)?;
-    let op_x = graph.operation_by_name_required("x")?;
-    let op_y = graph.operation_by_name_required("y")?;
-    let op_init = graph.operation_by_name_required("init")?;
-    let op_train = graph.operation_by_name_required("train")?;
-    let op_w = graph.operation_by_name_required("w")?;
-    let op_b = graph.operation_by_name_required("b")?;
 
+    let session = Session::new(&SessionOptions::new(), &graph)?;
+
+    // // let op_x = graph.operation_by_name_required("x")?;
+    // let op_x = graph.operation_by_name_required(train_input_tensor.name)?;
+    // // let op_y = graph.operation_by_name_required("y")?;
+    // let op_y = graph.operation_by_name_required(train_target_tensor.name)?;
+
+    // init information
+    let op_init = graph.operation_by_name_required("init")?;
     // Load the test data into the session.
     let mut init_step = SessionRunArgs::new();
     init_step.add_target(&op_init);
     session.run(&mut init_step)?;
 
-    // Train the model.
-    let mut train_step = SessionRunArgs::new();
-    train_step.add_feed(&op_x, 0, &x);
-    train_step.add_feed(&op_y, 0, &y);
-    train_step.add_target(&op_train);
-    for _ in 0..=epochs {
-        session.run(&mut train_step)?;
+    //The values will be fed to and retrieved from the model with this
+    let mut train_args = SessionRunArgs::new();
+
+    // retrieve the train function
+    let op_train = graph.operation_by_name_required("train")?;
+
+    // input information
+    let input_op_train = graph.operation_by_name_required(train_input_tensor.name)?;
+    train_args.add_feed(&input_op_train, 0, &train_input_tensor.tensor);
+
+    // target information
+    let target_op_train = graph.operation_by_name_required(train_target_tensor.name)?;
+    train_args.add_feed(&target_op_train, 0, &train_target_tensor.tensor);
+
+    // adds the training op to be executed when running the graph.
+    train_args.add_target(&op_train);
+
+    // output information
+    let mut output_fetch_tokens: HashMap<String, FetchToken> = HashMap::new();
+    for train_output_node_name in train_output_node_names {
+        // Output operation
+        let op_output = graph.operation_by_name_required(train_output_node_name)?;
+        // Fetch result from graph
+        let token = train_args.request_fetch(&op_output, 0);
+        println!("token: {:?}", token);
+
+        output_fetch_tokens.insert(train_output_node_name.to_string(), token);
     }
 
-    // Grab the data out of the session.
-    let mut output_step = SessionRunArgs::new();
-    let w_ix = output_step.request_fetch(&op_w, 0);
-    let b_ix = output_step.request_fetch(&op_b, 0);
-    session.run(&mut output_step)?;
+    // training
+    println!("[Plugin] Training model...");
+    for i in 0..=epochs {
+        print!("\tEpoch[{:?}]: ", i);
+        io::stdout().flush().unwrap();
 
-    // Check our results.
-    let w_hat: f32 = output_step.fetch(w_ix)?[0];
-    let b_hat: f32 = output_step.fetch(b_ix)?[0];
-    let w = 0.1;
-    let b = 0.3;
-    println!(
-        "Checking w: expected {}, got {}. {}",
-        w,
-        w_hat,
-        if (w - w_hat).abs() < 1e-3 {
-            "Success!"
-        } else {
-            "FAIL"
+        session
+            .run(&mut train_args)
+            .expect("Error occurred during training");
+
+        // retrieve the result of the operation
+        for (token_name, output_fetch_token) in output_fetch_tokens.iter() {
+            let value: f32 = train_args.fetch(*output_fetch_token).unwrap()[0];
+            print!("output[\"{token_name}\"]: {value:.8}  ");
         }
-    );
-    println!(
-        "Checking b: expected {}, got {}. {}",
-        b,
-        b_hat,
-        if (b - b_hat).abs() < 1e-3 {
-            "Success!"
-        } else {
-            "FAIL"
-        }
-    );
+        println!("");
+    }
+    println!("[Done]");
+
+    {
+        // // output information
+        // // Grab the data out of the session.
+        // let mut output_step = SessionRunArgs::new();
+
+        // let op_w = graph.operation_by_name_required(train_output_node_names[0])?;
+        // let op_b = graph.operation_by_name_required(train_output_node_names[1])?;
+
+        // let w_ix = output_step.request_fetch(&op_w, 0);
+        // let b_ix = output_step.request_fetch(&op_b, 0);
+
+        // session.run(&mut output_step)?;
+
+        // // Check our results.
+        // let w_hat: f32 = output_step.fetch(w_ix)?[0];
+        // let b_hat: f32 = output_step.fetch(b_ix)?[0];
+        // let w = 0.1;
+        // let b = 0.3;
+        // println!(
+        //     "Checking w: expected {}, got {}. {}",
+        //     w,
+        //     w_hat,
+        //     if (w - w_hat).abs() < 1e-3 {
+        //         "Success!"
+        //     } else {
+        //         "FAIL"
+        //     }
+        // );
+        // println!(
+        //     "Checking b: expected {}, got {}. {}",
+        //     b,
+        //     b_hat,
+        //     if (b - b_hat).abs() < 1e-3 {
+        //         "Success!"
+        //     } else {
+        //         "FAIL"
+        //     }
+        // );
+    }
 
     Ok(())
 }
