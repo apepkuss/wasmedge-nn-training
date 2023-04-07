@@ -22,7 +22,7 @@ In this example, we define a model with TensorFlow Python API, and then train it
 
 - Rust Tensorflow
 
-  [Rust Tensorflow crate](https://crates.io/crates/tensorflow) requires Tensorflow C library. You can reference the [webpage](https://www.tensorflow.org/install/lang_c) to download and deploy the required version of Tensorflow C library.
+  [Rust Tensorflow crate](https://crates.io/crates/tensorflow) requires Tensorflow C library. You can refer to the [webpage](https://www.tensorflow.org/install/lang_c) to download and deploy the required version of Tensorflow C library.
 
 - Install WasmEdge Runtime
 
@@ -48,6 +48,9 @@ conda create -n tf2 python=3.10
 
 # install tensorflow-cpu in this environment
 conda install -c conda-forge tensorflow-cpu
+
+# activate the environment
+conda activate tf2
 ```
 
 Now you can run the model script:
@@ -67,7 +70,7 @@ If the script runs sucessfully, a new directory named `regression_savedmodel` ca
 In the root directory of the repo, run the following command to build `wasmedge-nn-training` plugin:
 
 ```bash
-cargo build -p wasmedge-nn-training --release
+cargo build -p wasmedge-nn-training --release --features tensorflow
 ```
 
 If the command runs successfully, `libwasmedge_nn_training.so` can be found in the directory `target/release/`.
