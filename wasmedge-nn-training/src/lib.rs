@@ -618,7 +618,7 @@ fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFu
         .expect("failed to read memory");
     let train_output_name = std::str::from_utf8(bytes_train_output_name.as_slice())
         .expect("[Plugin] failed to convert to string");
-    println!("train_output_name: {train_output_name}");
+    // println!("train_output_name: {train_output_name}");
 
     println!("[Done]");
 
