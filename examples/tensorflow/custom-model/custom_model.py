@@ -21,7 +21,7 @@ class custom_model(tf.keras.Model):
     @tf.function
     def training(self, train_data):
         loss = self.train_step(train_data)["loss"]
-        return loss
+        return {"loss": loss}
 
 
 # Create model

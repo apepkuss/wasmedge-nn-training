@@ -116,12 +116,15 @@ pub enum Device {
     Mps,
 }
 
-pub const SIZE_OF_TENSOR: u32 = 28;
-pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
-pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
+pub const SIZE_OF_GRAPH_BUILDER: u32 = 8;
+pub const SIZE_OF_GRAPH_BUILDER_ARRAY: u32 = 8;
 
 pub type GraphBuilder<'a> = &'a [u8];
 pub type GraphBuilderArray<'a> = &'a [GraphBuilder<'a>];
+
+pub const SIZE_OF_TENSOR: u32 = 28;
+pub const SIZE_OF_TENSOR_ELEMENT: u32 = 4;
+pub const SIZE_OF_TENSOR_ARRAY: u32 = 8;
 
 // size: 4 bytes
 pub type TensorElement<'a> = &'a Tensor<'a>;
