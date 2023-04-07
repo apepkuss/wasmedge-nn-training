@@ -401,7 +401,7 @@ fn train_torch_model(
 
 #[cfg(feature = "tensorflow")]
 #[host_function]
-fn train_c(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
@@ -659,7 +659,7 @@ fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
     args.add_feed(&target_op_train, 0, &train_target_tensor.tensor);
 
     // Output information
-    let mut output_fetch_tokens = Vec::new();
+    let mut output_fetch_tokens: HashMap<String, FetchToken> = HashMap::new();
     for train_output_node_name in train_output_node_names.into_iter() {
         let output_info_train = signature_train.get_output(train_output_node_name).unwrap();
         // Output operation
@@ -669,7 +669,7 @@ fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
         // Fetch result from graph
         let token = args.request_fetch(&output_op_train, 0);
 
-        output_fetch_tokens.push(token);
+        output_fetch_tokens.insert(train_output_node_name.to_string(), token);
     }
 
     println!("[Plugin] Training model...");
@@ -682,10 +682,11 @@ fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
             .expect("Error occurred during training");
 
         //Retrieve the result of the operation
-        for (i, output_fetch_token) in output_fetch_tokens.iter().enumerate() {
+        for (_, output_fetch_token) in output_fetch_tokens.iter() {
             let loss: f32 = args.fetch(*output_fetch_token).unwrap()[0];
-            println!("Loss of output[{i}]: {:?} ", loss);
+            print!("loss: {loss:.8}  ");
         }
+        println!("");
     }
     println!("[Done]");
 
@@ -728,7 +729,7 @@ fn train_custom_model<S: tf::TensorType, T: tf::TensorType>(
 
 #[cfg(feature = "tensorflow")]
 #[host_function]
-fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train_r(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
@@ -1048,24 +1049,10 @@ fn train_regression<S: tf::TensorType, T: tf::TensorType>(
     train_target_tensor: TFTensor<T>,
     train_output_node_names: &[&str],
     epochs: i32,
-    // x: tf::Tensor<T>,
-    // y: tf::Tensor<T>,
-    // epochs: i32,
 ) -> Result<()> {
     println!("\n*** In train_regression ***\n");
 
     let filename = "examples/tensorflow/regression/model/model.pb"; // y = w * x + b
-
-    // // Generate some test data.
-
-    // let num_points = 100;
-    // let num_epoch = 201;
-    // let mut x = tf::Tensor::new(&[num_points as u64]);
-    // let mut y = tf::Tensor::new(&[num_points as u64]);
-    // for i in 0..num_points {
-    //     x[i] = (2.0 * rand::random::<f64>() - 1.0) as f32;
-    //     y[i] = w * x[i] + b;
-    // }
 
     // Load the computation graph defined by regression.py.
     let mut graph = Graph::new();
@@ -1074,11 +1061,6 @@ fn train_regression<S: tf::TensorType, T: tf::TensorType>(
     graph.import_graph_def(&proto, &ImportGraphDefOptions::new())?;
 
     let session = Session::new(&SessionOptions::new(), &graph)?;
-
-    // // let op_x = graph.operation_by_name_required("x")?;
-    // let op_x = graph.operation_by_name_required(train_input_tensor.name)?;
-    // // let op_y = graph.operation_by_name_required("y")?;
-    // let op_y = graph.operation_by_name_required(train_target_tensor.name)?;
 
     // init information
     let op_init = graph.operation_by_name_required("init")?;
