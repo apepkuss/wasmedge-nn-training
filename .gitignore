@@ -1,3 +1,4 @@
 target/
 Cargo.lock
 examples/tensorflow/custom-model/custom_model/
+examples/tensorflow/regression/regression_savedmodel/
