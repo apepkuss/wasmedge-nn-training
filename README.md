@@ -10,14 +10,6 @@ The goal of this project is to explore the feasibility of providing AI training 
   <img src="arch.jpg" alt="architecture" width="450" />
 </p>
 
-This project consists of three parts:
-
-- `resnet.py` is a Python script defining a `Resnet` model with PyTorch Python API.
-
-- `wasmedge-nn-training` constructs a plugin prototype integrated with PyTorch.
-
-- `resnet-pytorch` is a wasm app that is responsible for preparing data and calling the `train` interface to trigger a training task.
-
 ## Examples
 
 In the current stage, three examples are provided: one is PyTorch model, the others are TensorFlow models. The models are defined with PyTorch/TensorFlow Python APIs, while the training is done on WasmEdge Runtime via the `wasmedge-nn-training` plugin.
