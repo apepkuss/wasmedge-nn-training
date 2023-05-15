@@ -71,7 +71,7 @@ If the script runs sucessfully, a new directory named `custom_model` can be foun
 In the root directory of the repo, run the following command to build `wasmedge-nn-training` plugin:
 
 ```bash
-cargo build -p wasmedge-nn-training --release
+cargo build -p wasmedge-nn-training --features tensorflow --release
 ```
 
 If the command runs successfully, `libwasmedge_nn_training.so` can be found in the directory `target/release/`.
@@ -87,7 +87,7 @@ cp target/release/libwasmedge_nn_training.so /usr/local/lib/wasmedge
 
 ```bash
 # For running Tensorflow model, turn on the `tensorflow` feature
-cargo build -p run-custom-model --target wasm32-wasi --features tensorflow --release
+cargo build -p run-custom-model --target wasm32-wasi --release
 ```
 
 If the command runs successfully, `run-custom-model.wasm` can be found in the directory `target/wasm32-wasi/release/`.
