@@ -86,7 +86,8 @@ cp target/release/libwasmedge_nn_training.so /usr/local/lib/wasmedge
 ### Step 4: Build `run-custom-model` wasm app
 
 ```bash
-cargo build -p run-custom-model --target wasm32-wasi --release --features tensorflow
+# For running Tensorflow model, turn on the `tensorflow` feature
+cargo build -p run-custom-model --target wasm32-wasi --features tensorflow --release
 ```
 
 If the command runs successfully, `run-custom-model.wasm` can be found in the directory `target/wasm32-wasi/release/`.
