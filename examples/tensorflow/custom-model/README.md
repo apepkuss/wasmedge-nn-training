@@ -64,13 +64,12 @@ python3 custom_model.py
 
 If the script runs sucessfully, a new directory named `custom_model` can be found.
 
-
 ### Step 3: Build and deploy `wasmedge-nn-training` plugin
 
 In the root directory of the repo, run the following command to build `wasmedge-nn-training` plugin:
 
 ```bash
-cargo build -p wasmedge-nn-training --features tensorflow --release
+cargo build -p wasmedge-nn-training --release --features tensorflow
 ```
 
 If the command runs successfully, `libwasmedge_nn_training.so` can be found in the directory `target/release/`.

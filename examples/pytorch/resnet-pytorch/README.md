@@ -28,7 +28,6 @@ In this example, we define Resnet model with PyTorch Python API, and then train 
 
   This example requires `WasmEdge-0.12.0-alpha.2`. You can follow the steps in this [webpage](https://wasmedge.org/book/en/contribute/build_from_src/linux.html).
 
-
 ## Steps for training
 
 ### Step 1: Download the example
@@ -47,11 +46,11 @@ To run this step, you should create a conda environment and install PyTorch in t
 # create a conda environment with python support
 conda create -n torch python=3.10
 
-# install pytorch-cpu in this environment
-conda install pytorch torchvision torchaudio cpuonly -c pytorch
-
 # activate the environment
 conda activate torch
+
+# install pytorch-cpu in this environment
+conda install pytorch torchvision torchaudio cpuonly -c pytorch
 ```
 
 Now you can run the model script:
@@ -64,7 +63,6 @@ python3 resnet.py
 ```
 
 If the script runs sucessfully, `trained_model.py` can be found in the directory `examples/pytorch/resnet-pytorch`.
-
 
 ### Step 3: Build and deploy `wasmedge-nn-training` plugin
 

@@ -46,11 +46,11 @@ To run this step, you should create a conda environment and install tensorflow i
 # create a conda environment with python support
 conda create -n tf2 python=3.10
 
-# install tensorflow-cpu in this environment
-conda install -c conda-forge tensorflow-cpu
-
 # activate the environment
 conda activate tf2
+
+# install tensorflow-cpu in this environment
+conda install -c conda-forge tensorflow-cpu
 ```
 
 Now you can run the model script:
@@ -63,7 +63,6 @@ python3 regression.py
 ```
 
 If the script runs sucessfully, a new directory named `regression_savedmodel` can be found.
-
 
 ### Step 3: Build and deploy `wasmedge-nn-training` plugin
 
