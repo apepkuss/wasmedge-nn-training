@@ -1,14 +1,13 @@
 extern crate num as num_renamed;
 
 use anyhow::Result;
-use std::collections::HashMap;
 use std::io::{self, Write};
 use wasmedge_nn_common as common;
 use wasmedge_sdk::{
     error::HostFuncError,
     host_function,
-    plugin::{ffi, PluginDescriptor, PluginVersion},
-    Caller, ImportObjectBuilder, ValType, WasmValue,
+    plugin::{ffi, PluginDescriptor, PluginModuleBuilder, PluginVersion},
+    Caller, NeverType, ValType, WasmValue,
 };
 
 #[cfg(feature = "torch")]
@@ -18,10 +17,8 @@ use tch::{
     Device, Tensor, TrainableCModule,
 };
 
-use rand;
-use std::error::Error;
-use std::fs::File;
-use std::io::Read;
+#[cfg(feature = "tensorflow")]
+use std::collections::HashMap;
 
 #[cfg(feature = "tensorflow")]
 use tensorflow::{self as tf, FetchToken, Graph, SavedModelBundle, SessionOptions, SessionRunArgs};
@@ -30,7 +27,11 @@ use tensorflow::{self as tf, FetchToken, Graph, SavedModelBundle, SessionOptions
 
 #[cfg(feature = "torch")]
 #[host_function]
-fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train<T>(
+    caller: Caller,
+    input: Vec<WasmValue>,
+    _ctx: Option<&mut T>,
+) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
@@ -327,7 +328,7 @@ fn train_torch_model(
     epochs: i32,
     batch_size: i64,
     optimizer: common::Optimizer,
-    loss_fn: common::LossFunction,
+    _loss_fn: common::LossFunction,
     model_path: &std::path::Path,
 ) -> Result<()> {
     let vs = VarStore::new(device);
@@ -397,7 +398,11 @@ fn train_torch_model(
 
 #[cfg(feature = "tensorflow")]
 #[host_function]
-fn train(caller: Caller, input: Vec<WasmValue>) -> Result<Vec<WasmValue>, HostFuncError> {
+fn train<T>(
+    caller: Caller,
+    input: Vec<WasmValue>,
+    _ctx: Option<&mut T>,
+) -> Result<Vec<WasmValue>, HostFuncError> {
     println!("\n*** Welcome! This is `wasmedge-nn-training` plugin. ***\n");
 
     // check the number of inputs
@@ -728,20 +733,20 @@ unsafe extern "C" fn create_test_module(
 ) -> *mut ffi::WasmEdge_ModuleInstanceContext {
     let module_name = "wasmedge-nn-training";
 
-    // create ImportObject builder
-    let io_builder = ImportObjectBuilder::new();
+    // create a PluginModuleBuilder instance
+    let plugin_module_builder = PluginModuleBuilder::<NeverType>::new();
 
     #[cfg(feature = "torch")]
-    let io_builder = io_builder
+    let plugin_module_builder = plugin_module_builder
         .with_func::<(i32, i32, i64, i32, f64, i32, i64, i32, i32, i32, i32), ()>("train", train)
         .expect("failed to create set_dataset host function");
 
     #[cfg(feature = "tensorflow")]
-    let io_builder = io_builder
+    let plugin_module_builder = plugin_module_builder
         .with_func::<(i32, i32, i32, i32, i32), ()>("train", train)
         .expect("failed to create set_dataset host function");
 
-    let import = io_builder
+    let import = plugin_module_builder
         .build(module_name)
         .expect("failed to create import object");
 

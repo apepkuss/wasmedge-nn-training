@@ -11,7 +11,7 @@ anyhow = "1"
 byteorder = "1.4.3"
 num = "0.4.0"
 tch = { version = "0.10.3", optional = true }
-wasmedge-sdk = {version = "0.8.0", features = ["ffi"]}
+wasmedge-sdk = {version = "0.9.0", features = ["ffi"]}
 wasmedge-nn-common = { path = "../wasmedge-nn-common" }
 tensorflow = { version = "0.20.0", optional = true }
 
